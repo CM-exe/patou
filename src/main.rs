@@ -1,7 +1,9 @@
 use clap::{Parser, Subcommand};
+use std::path::PathBuf;
 use std::process::ExitCode;
 
 mod commands;
+mod git;
 
 #[derive(Parser)]
 #[command(name = "patou", version, about = "Lightweight, self-contained Git quality tool", long_about = None)]
@@ -16,27 +18,28 @@ enum Commands {
     Init,
     /// Activate Patou for an existing repository (link the githooks)
     Install,
-    /// Validate staged changes against the project's rules
-    Check,
+    /// Validate a commit against the project's rules
+    Check {
+        /// Path to the commit message file, as passed by the commit-msg hook
+        message_file: Option<PathBuf>,
+    },
 }
 
 fn main() -> ExitCode {
     let cli = Cli::parse();
 
     let result = match cli.command {
-        Commands::Init => commands::init::run(),
+        Commands::Init => commands::init::run().map(|_| true),
         Commands::Install => {
             println!("patou install");
-            Ok(())
+            Ok(true)
         }
-        Commands::Check => {
-            println!("patou check");
-            Ok(())
-        }
+        Commands::Check { message_file } => commands::check::run(message_file),
     };
 
     match result {
-        Ok(()) => ExitCode::SUCCESS,
+        Ok(true) => ExitCode::SUCCESS,
+        Ok(false) => ExitCode::FAILURE,
         Err(err) => {
             eprintln!("error: {err}");
             ExitCode::FAILURE

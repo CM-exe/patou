@@ -1,7 +1,9 @@
 use std::fs;
 use std::io;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::Command;
+
+use crate::git;
 
 const DEFAULT_CONFIG: &str = r#"# Patou configuration
 # Rules defined here are versioned with the repository, so every
@@ -12,10 +14,10 @@ const DEFAULT_CONFIG: &str = r#"# Patou configuration
 pattern = "^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\\([a-z0-9-]+\\))?: .{1,72}$"
 "#;
 
-const PRE_COMMIT_HOOK: &str = "#!/bin/sh\npatou check\n";
+const COMMIT_MSG_HOOK: &str = "#!/bin/sh\npatou check \"$1\"\n";
 
 pub fn run() -> io::Result<()> {
-    let repo_root = git_repo_root()?;
+    let repo_root = git::repo_root()?;
 
     let patou_dir = repo_root.join(".patou");
     let hooks_dir = patou_dir.join("hooks");
@@ -24,31 +26,18 @@ pub fn run() -> io::Result<()> {
     let config_path = patou_dir.join("config.toml");
     write_if_absent(&config_path, DEFAULT_CONFIG)?;
 
-    let hook_path = hooks_dir.join("pre-commit");
-    write_if_absent(&hook_path, PRE_COMMIT_HOOK)?;
+    let hook_path = hooks_dir.join("commit-msg");
+    write_if_absent(&hook_path, COMMIT_MSG_HOOK)?;
     make_executable(&hook_path)?;
 
     set_hooks_path(&repo_root)?;
 
     println!("Initialized Patou in {}", repo_root.display());
     println!("  .patou/config.toml");
-    println!("  .patou/hooks/pre-commit");
+    println!("  .patou/hooks/commit-msg");
     println!("  git config core.hooksPath -> .patou/hooks");
 
     Ok(())
-}
-
-fn git_repo_root() -> io::Result<PathBuf> {
-    let output = Command::new("git")
-        .args(["rev-parse", "--show-toplevel"])
-        .output()?;
-
-    if !output.status.success() {
-        return Err(io::Error::other("not inside a Git repository"));
-    }
-
-    let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    Ok(PathBuf::from(path))
 }
 
 fn write_if_absent(path: &Path, contents: &str) -> io::Result<()> {
