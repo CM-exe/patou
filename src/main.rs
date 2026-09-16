@@ -30,10 +30,7 @@ fn main() -> ExitCode {
 
     let result = match cli.command {
         Commands::Init => commands::init::run().map(|_| true),
-        Commands::Install => {
-            println!("patou install");
-            Ok(true)
-        }
+        Commands::Install => commands::install::run(),
         Commands::Check { message_file } => commands::check::run(message_file),
     };
 
