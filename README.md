@@ -78,6 +78,7 @@ patou check
  - [ ] Add a command to check the current configuration
  - [ ] Add helpful CLI output and diagnostics
  - [X] Provide documentation and examples
+ - [ ] Add easy Git CI/CD integration (almost)
 
 ### Distribution
 
