@@ -1,0 +1,42 @@
+# `patou check`
+
+```bash
+patou check [message-file]
+```
+
+Validates a commit message against the `[commit]` rule in
+`.patou/config.toml`.
+
+- `message-file` — path to a file containing the commit message, in the
+  same format Git passes to a `commit-msg` hook (the first argument,
+  `$1`). Optional.
+
+## Exit behavior
+
+- Exits `0` and prints `commit message OK` if the subject matches the
+  configured pattern.
+- Exits `1` and prints the rejected subject plus the expected pattern to
+  stderr if it doesn't match.
+- Exits `0` and prints a note if no `message-file` was given, or if
+  `.patou/config.toml` has no `[commit]` rule — there's nothing to
+  validate.
+- Exits `1` with an error if `.patou/config.toml` is missing (repository
+  not initialized), invalid TOML, or the configured pattern isn't a valid
+  regex.
+
+## Where it's used
+
+- **Not** by the Git hook — `.patou/hooks/commit-msg` validates directly
+  in shell, without calling `patou`, so it works without a global install
+  (see [How hooks work](../hooks.md)).
+- Manually, to test a rule against a candidate message.
+- In CI, where `patou` can be installed as part of the pipeline, as an
+  extra validation layer independent of the client-side hook.
+
+## Example
+
+```bash
+echo "fix(parser): handle empty input" > msg.txt
+patou check msg.txt
+# commit message OK
+```

@@ -1,0 +1,11 @@
+[book]
+title = "Patou"
+description = "A lightweight, self-contained Git quality tool built in Rust"
+authors = ["MOURGUE Clément"]
+language = "en"
+src = "src"
+
+[output.html]
+git-repository-url = "https://github.com/CM-exe/patou"
+default-theme = "light"
+preferred-dark-theme = "navy"
