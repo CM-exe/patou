@@ -16,6 +16,21 @@ A lightweight, self-contained Git quality tool built in Rust. Patou embeds versi
 * 📦 Self-contained with no Node.js/npm dependency
 * 🧩 Extensible with custom rules, formatters, linters, and Git checks
 
+## Install
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/CM-exe/patou/main/scripts/install.sh | sh
+```
+
+```powershell
+irm https://raw.githubusercontent.com/CM-exe/patou/main/scripts/install.ps1 | iex
+```
+
+See the [documentation](https://cm-exe.github.io/patou/) for other
+install methods, configuration, and how the hooks work.
+
+## Usage
+
 ```bash
 patou init
 patou check

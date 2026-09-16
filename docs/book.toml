@@ -9,3 +9,5 @@ src = "src"
 git-repository-url = "https://github.com/CM-exe/patou"
 default-theme = "light"
 preferred-dark-theme = "navy"
+additional-css = ["theme/patou.css"]
+hash-files = false

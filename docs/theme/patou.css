@@ -1,0 +1,19 @@
+/* Small brand icon next to the book title in the top menu bar, reusing
+   the favicon mdBook already copies to the output root. */
+.menu-title {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.menu-title::before {
+    content: "";
+    display: inline-block;
+    width: 1.4rem;
+    height: 1.4rem;
+    /* theme/patou.css is served from /theme/, favicon.png from the root */
+    background-image: url("../favicon.png");
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
+}
