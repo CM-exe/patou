@@ -1,4 +1,4 @@
-use clap::{Parser, Subcommand};
+use clap::{CommandFactory, Parser, Subcommand};
 use std::path::PathBuf;
 use std::process::ExitCode;
 
@@ -9,7 +9,7 @@ mod git;
 #[command(name = "patou", version, about = "Lightweight, self-contained Git quality tool", long_about = None)]
 struct Cli {
     #[command(subcommand)]
-    command: Commands,
+    command: Option<Commands>,
 }
 
 #[derive(Subcommand)]
@@ -28,7 +28,13 @@ enum Commands {
 fn main() -> ExitCode {
     let cli = Cli::parse();
 
-    let result = match cli.command {
+    let Some(command) = cli.command else {
+        Cli::command().print_help().expect("failed to print help");
+        println!();
+        return ExitCode::SUCCESS;
+    };
+
+    let result = match command {
         Commands::Init => commands::init::run().map(|_| true),
         Commands::Install => commands::install::run(),
         Commands::Check { message_file } => commands::check::run(message_file),

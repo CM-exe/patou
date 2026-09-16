@@ -26,8 +26,12 @@ curl -fsSL https://raw.githubusercontent.com/CM-exe/patou/main/scripts/install.s
 irm https://raw.githubusercontent.com/CM-exe/patou/main/scripts/install.ps1 | iex
 ```
 
+```cmd
+curl -fsSL https://raw.githubusercontent.com/CM-exe/patou/main/scripts/install.cmd -o install.cmd && install.cmd
+```
+
 See the [documentation](https://cm-exe.github.io/patou/) for other
-install methods, configuration, and how the hooks work.
+install methods, uninstalling, configuration, and how the hooks work.
 
 ## Usage
 

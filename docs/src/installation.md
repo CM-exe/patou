@@ -22,6 +22,12 @@ curl -fsSL https://raw.githubusercontent.com/CM-exe/patou/main/scripts/install.s
 irm https://raw.githubusercontent.com/CM-exe/patou/main/scripts/install.ps1 | iex
 ```
 
+```cmd
+:: Windows cmd.exe (no PowerShell required — uses curl and tar,
+:: both built into Windows 10 1803+ and Windows 11)
+curl -fsSL https://raw.githubusercontent.com/CM-exe/patou/main/scripts/install.cmd -o install.cmd && install.cmd
+```
+
 By default this installs to `~/.local/bin` (`%LOCALAPPDATA%\Patou\bin` on
 Windows) — set `PATOU_INSTALL_DIR` to change that, and `PATOU_VERSION`
 (e.g. `v0.2.0`) to install a specific release instead of the latest one.
@@ -56,3 +62,50 @@ cargo build --release
 - A recent Rust toolchain (edition 2024) to build from source.
 - `git` available on `PATH` — Patou shells out to it for repository
   discovery and configuration.
+
+## Uninstall
+
+How to remove `patou` depends on how you installed it.
+
+**Installed with the install script or `.cmd`/`.ps1` above:**
+
+```bash
+# Linux / macOS
+curl -fsSL https://raw.githubusercontent.com/CM-exe/patou/main/scripts/uninstall.sh | sh
+```
+
+```powershell
+# Windows PowerShell
+irm https://raw.githubusercontent.com/CM-exe/patou/main/scripts/uninstall.ps1 | iex
+```
+
+```cmd
+:: Windows cmd.exe
+curl -fsSL https://raw.githubusercontent.com/CM-exe/patou/main/scripts/uninstall.cmd -o uninstall.cmd && uninstall.cmd
+```
+
+Each just removes the `patou` binary from its install directory — set
+`PATOU_INSTALL_DIR` if you installed to a non-default location.
+
+**Installed with `cargo install --path .`:**
+
+```bash
+cargo uninstall patou
+```
+
+**Built locally without installing** (`cargo build --release`): just
+delete the `target/` directory, or the repository clone.
+
+### Removing Patou from a repository
+
+Uninstalling the `patou` binary is unrelated to a repository that already
+has Patou set up — that's local state living in `.patou/` and Git config,
+not something the binary needs to be present to remove:
+
+```bash
+git config --unset core.hooksPath   # stop enforcing the hooks
+rm -rf .patou                       # also drop the rules and hook scripts
+```
+
+If you only want to pause enforcement temporarily without removing
+anything, the `git config --unset` step alone is enough.

@@ -43,6 +43,19 @@ fn hooks_path(dir: &Path) -> String {
 }
 
 #[test]
+fn running_with_no_subcommand_prints_help_and_succeeds() {
+    let repo = init_git_repo();
+
+    patou(repo.path())
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Usage: patou"))
+        .stdout(predicate::str::contains("init"))
+        .stdout(predicate::str::contains("install"))
+        .stdout(predicate::str::contains("check"));
+}
+
+#[test]
 fn init_creates_config_hooks_and_install_scripts() {
     let repo = init_git_repo();
 

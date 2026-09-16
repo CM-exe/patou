@@ -20,7 +20,7 @@ os=$(uname -s)
 arch=$(uname -m)
 
 case "$os" in
-  Linux) os_part="unknown-linux-gnu" ;;
+  Linux) os_part="unknown-linux-musl" ;;
   Darwin) os_part="apple-darwin" ;;
   *)
     echo "error: unsupported OS '$os' - see https://github.com/$repo for manual install options" >&2
