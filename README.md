@@ -1,4 +1,10 @@
+<div align="center">
+
+<img src="assets/logo-patou.png" alt="Patou logo" width="420">
+
 # Patou
+
+</div>
 
 A lightweight, self-contained Git quality tool built in Rust. Patou embeds version-controlled commit rules and pre-commit validation directly into your repository—no global installation, Node.js, or project-specific dependencies required.
 
