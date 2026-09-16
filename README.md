@@ -37,5 +37,52 @@ install methods, uninstalling, configuration, and how the hooks work.
 
 ```bash
 patou init
+patou install
 patou check
 ```
+
+---
+
+## 🗺️ Roadmap
+
+### Git Hooks
+
+ - [ ] Support common Git hooks (pre-commit, commit-msg, pre-push, etc.)
+ - [X] Make hook installation simple and reliable
+ - [ ] Support custom hook scripts
+ - [ ] Support multiple commands per hook
+ - [X] Provide clear error messages and exit codes
+ - [X] Support disabling/skipping hooks when needed (should be made easier)
+
+### Conventions & Rules
+
+ - [ ] Add configurable branch naming rules
+ - [ ] Add configurable tag naming rules
+ - [X] Add configurable commit message rules
+ - [ ] Add configurable file/path rules
+ - [ ] Add configurable commit/push policies
+ - [ ] Allow projects to define their own custom rules
+
+### Configuration
+
+ - [X] Add a simple project configuration file
+ - [ ] Support per-hook configuration
+ - [ ] Support environment variables
+ - [X] Support reusable/shared configurations
+ - [X] Add configuration validation
+
+### Developer Experience
+
+ - [X] Add an easy initialization command
+ - [ ] Add an uninstall/cleanup command
+ - [ ] Add a command to check the current configuration
+ - [ ] Add helpful CLI output and diagnostics
+ - [X] Provide documentation and examples
+
+### Distribution
+
+ - [X] Provide prebuilt binaries
+ - [X] Support major platforms
+ - [X] Provide easy installation methods
+ - [X] Automate releases
+ - [X] Add CI for builds and tests
