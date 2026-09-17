@@ -157,6 +157,20 @@ function ConvertTo-PosixPath {
 # `cd`s to $HOME on startup, discarding the working directory VS Code
 # actually opened the terminal in.
 #
+# `icon` is the closest built-in match rather than Patou's own logo: VS
+# Code's terminal profile `icon` only accepts a built-in codicon ID for
+# profiles defined this way in settings.json, not a path to a custom image
+# (see microsoft/vscode issues #127607 and #119343 - there's no way around
+# this short of shipping a VS Code extension). `color` at least tints it
+# blue, in the spirit of the mintty theme's own grey/blue/light-blue
+# palette (assets/patou-bash.minttyrc) - which otherwise has no equivalent
+# here, since that palette only applies to mintty's own rendering and VS
+# Code hosts this profile in its own terminal (xterm.js) instead. The
+# ANSI-colored prompt/banner themselves (patou-prompt.sh/patou-banner.sh,
+# sourced via the --login below) still render the same way regardless of
+# which terminal is hosting bash, since those come from bash's own escape
+# codes rather than from mintty.
+#
 # Safe to run repeatedly: each settings.json is read-modified-written
 # through ConvertFrom-Json/ConvertTo-Json rather than text surgery, so
 # unrelated settings and any existing "terminal.integrated.profiles.windows"
@@ -174,10 +188,11 @@ function Add-VsCodeTerminalProfile {
 
     $homeDir = if ($env:USERPROFILE) { $env:USERPROFILE } else { "$env:HOMEDRIVE$env:HOMEPATH" }
     $profileDef = [PSCustomObject]@{
-        path = $bashPath
-        args = @('--login', '-i')
-        icon = 'terminal-bash'
-        env  = [PSCustomObject]@{
+        path  = $bashPath
+        args  = @('--login', '-i')
+        icon  = 'terminal-bash'
+        color = 'terminal.ansiBlue'
+        env   = [PSCustomObject]@{
             CHERE_INVOKING = '1'
             HOME           = ConvertTo-PosixPath $homeDir
         }

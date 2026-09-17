@@ -121,11 +121,32 @@ terminal panel. Set `PATOU_SKIP_VSCODE_PROFILE` to skip just this step.
 
 `install.ps1` merges this into `settings.json` through a proper
 read-parse-write (so existing settings and any profiles you've already
-configured survive untouched); `install.cmd` — which deliberately has no
-PowerShell dependency, and so no JSON parser — only writes the file when
-it doesn't exist yet, and otherwise prints the snippet to add by hand.
-Uninstalling removes the entry the same way (or, from `uninstall.cmd`,
-prints a reminder to remove it yourself).
+configured survive untouched), adding the
+`terminal.integrated.profiles.windows` key itself if it isn't already
+there, and then the `Patou Bash` entry under it if that isn't either.
+`install.cmd` — which deliberately has no PowerShell dependency, and so no
+JSON parser of its own — does the same read-modify-write by downloading a
+small VBScript helper
+([`scripts/patou-vscode-profile.vbs`](https://github.com/CM-exe/patou/blob/main/scripts/patou-vscode-profile.vbs),
+`cscript` being built into every Windows version) rather than editing
+JSON with plain batch text commands. Uninstalling removes the entry again
+the same way (or, from `uninstall.cmd`, prints a reminder to remove it
+yourself, since it has no JSON parser to safely isolate just that one
+entry either).
+
+The profile's icon is `terminal-bash` rather than Patou's own logo: VS
+Code's terminal profile `icon` only accepts a built-in codicon ID for
+profiles defined this way in `settings.json`, not a path to a custom
+image ([microsoft/vscode#127607](https://github.com/microsoft/vscode/issues/127607),
+[#119343](https://github.com/microsoft/vscode/issues/119343)) — there's no
+way around this short of shipping a VS Code extension. Its `color` is set
+to `terminal.ansiBlue` as the closest built-in nod to the mintty theme's
+own grey/blue/light-blue palette, which otherwise has no VS Code
+equivalent: that palette (`assets/patou-bash.minttyrc`) only applies to
+mintty's own rendering, and VS Code hosts this profile in its own
+terminal (xterm.js) instead. The ANSI-colored prompt/banner themselves
+still render exactly the same way either way, since those come from
+bash's own escape codes (via `--login`) rather than from mintty.
 
 ## From source
 

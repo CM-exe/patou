@@ -230,20 +230,17 @@ goto :eof
 :: points straight at the bundled bash.exe rather than at
 :: patou-bash.exe/mintty.
 ::
-:: CHERE_INVOKING=1 mirrors the same fix applied to the mintty-based
-:: launcher's login shell (see launch_branded_mintty in
-:: patou-bash/src/main.rs): without it, a `--login` bash unconditionally
-:: `cd`s to $HOME on startup, discarding the working directory VS Code
-:: actually opened the terminal in.
-::
-:: Unlike install.ps1's Add-VsCodeTerminalProfile (which does a real
-:: read-modify-write via ConvertFrom-Json/ConvertTo-Json), this script has
-:: no JSON parser available without depending on PowerShell - which this
-:: installer deliberately avoids. So it only ever auto-writes a
-:: settings.json that doesn't exist yet (content it fully owns, so there's
-:: nothing to corrupt); if one already exists, it prints the snippet to
-:: add by hand instead of risking text surgery on a file it doesn't
-:: understand.
+:: Unlike install.ps1's Add-VsCodeTerminalProfile (a real read-modify-write
+:: via ConvertFrom-Json/ConvertTo-Json), this script has no JSON parser
+:: available without depending on PowerShell - which this installer
+:: deliberately avoids. Editing arbitrary existing JSON correctly with
+:: plain batch text commands isn't realistic, so this downloads a small
+:: VBScript helper (scripts/patou-vscode-profile.vbs - cscript is built
+:: into every Windows version) that does the actual read-modify-write: it
+:: adds the "terminal.integrated.profiles.windows" key if missing, then
+:: adds the "Patou Bash" entry under it if missing, leaving the rest of
+:: the file untouched. See that file for the CHERE_INVOKING/icon/color
+:: reasoning behind the entry it writes.
 :add_vscode_terminal_profile
 setlocal EnableDelayedExpansion
 
@@ -261,37 +258,40 @@ set "home_rest=%home_rest:\=/%"
 call :lower drive_letter
 set "home_posix=/%drive_letter%%home_rest%"
 
-:: JSON string values need backslashes doubled, same as the .reg
-:: generation in add_patou_bash_here above.
-set "bash_path_json=%bash_path:\=\\%"
+set "vbs_url=https://raw.githubusercontent.com/%repo%/main/scripts/patou-vscode-profile.vbs"
+set "vbs_file=%TEMP%\patou-vscode-profile-%RANDOM%.vbs"
+curl -fsSL "%vbs_url%" -o "%vbs_file%"
+if errorlevel 1 (
+  echo note: could not download the VS Code terminal profile helper - add the 'Patou Bash' VS Code terminal profile manually if you'd like it
+  del /f /q "%vbs_file%" >nul 2>&1
+  endlocal
+  goto :eof
+)
+
+set "PATOU_VSCODE_BASH_PATH=%bash_path%"
+set "PATOU_VSCODE_HOME_POSIX=%home_posix%"
 
 for %%E in ("Code" "Code - Insiders") do (
   set "user_dir=%APPDATA%\%%~E\User"
   if exist "!user_dir!" (
     set "settings_path=!user_dir!\settings.json"
-    if exist "!settings_path!" (
-      findstr /c:"Patou Bash" "!settings_path!" >nul 2>&1
-      if errorlevel 1 (
-        echo note: !settings_path! already exists - add this to its "terminal.integrated.profiles.windows" ^(create that key if it's missing^) for a 'Patou Bash' entry in VS Code's terminal dropdown:
-        echo   "Patou Bash": { "path": "%bash_path_json%", "args": ["--login", "-i"], "icon": "terminal-bash", "env": { "CHERE_INVOKING": "1", "HOME": "%home_posix%" } }
-      )
-    ) else (
-      (
-        echo {
-        echo   "terminal.integrated.profiles.windows": {
-        echo     "Patou Bash": {
-        echo       "path": "%bash_path_json%",
-        echo       "args": ["--login", "-i"],
-        echo       "icon": "terminal-bash",
-        echo       "env": { "CHERE_INVOKING": "1", "HOME": "%home_posix%" }
-        echo     }
-        echo   }
-        echo }
-      ) > "!settings_path!"
+    set "PATOU_VSCODE_SETTINGS=!settings_path!"
+    set "vbs_result="
+    for /f "usebackq delims=" %%R in (`cscript //nologo "%vbs_file%" 2^>^&1`) do set "vbs_result=%%R"
+    if "!vbs_result!"=="OK" (
       echo Added a 'Patou Bash' terminal profile to !settings_path!
+    ) else if "!vbs_result!"=="SKIP" (
+      rem Already present - nothing to do.
+    ) else (
+      echo note: could not update !settings_path! ^(!vbs_result!^) - add the 'Patou Bash' VS Code terminal profile manually if you'd like it
     )
   )
 )
+
+set "PATOU_VSCODE_SETTINGS="
+set "PATOU_VSCODE_BASH_PATH="
+set "PATOU_VSCODE_HOME_POSIX="
+del /f /q "%vbs_file%" >nul 2>&1
 
 endlocal
 goto :eof
