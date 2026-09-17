@@ -61,13 +61,11 @@ Windows install: `install.ps1`/`install.cmd` download a prebuilt
 [MSYS2](https://www.msys2.org/) + `git` bundle (not Git for Windows' own
 copy) into a private `msys64\` folder next to `patou-bash.exe`. That
 bundle is built in CI by
-[`.github/workflows/msys2-bundle.yml`](https://github.com/CM-exe/patou/blob/main/.github/workflows/msys2-bundle.yml) —
-extracting the MSYS2 base archive and `pacman`-installing `git` into it
-once there (following the same sequence the official
+[`.github/workflows/msys2-bundle.yml`](https://github.com/CM-exe/patou/blob/main/.github/workflows/msys2-bundle.yml)
+— using the official
 [`msys2/setup-msys2`](https://github.com/msys2/setup-msys2) GitHub
-Action uses: a first bash run, a two-pass `pacman -Syuu` with a
-`taskkill` in between to clear a lingering lock on `msys-2.0.dll`, then
-`pacman -S git`) — and published as `patou-msys2-x86_64.zip`, an asset
+Action to set up MSYS2 and `pacman`-install `git` into it — and
+published as `patou-msys2-x86_64.zip`, an asset
 on that **same patou release**, right alongside `patou-<target>.zip`.
 The install scripts fetch it using the exact same version they're
 installing (`PATOU_VERSION`/`latest`), just like the main download —

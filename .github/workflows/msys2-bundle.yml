@@ -5,9 +5,18 @@ name: MSYS2 bundle
 # release as patou.exe/patou-bash.exe - scripts/install.ps1 and
 # scripts/install.cmd download it from whichever patou version they're
 # installing, exactly like the patou-<target>.zip assets. This runs the
-# pacman-based setup (extract the MSYS2 base archive, bootstrap it,
-# install git) *once, in CI*, rather than on every end user's machine at
-# install time.
+# pacman-based setup (install MSYS2, install git) *once, in CI*, rather
+# than on every end user's machine at install time.
+#
+# Uses msys2/setup-msys2 (https://github.com/msys2/setup-msys2) rather
+# than hand-rolling the same thing, after repeatedly hitting the exact
+# pitfalls that action already handles: manually downloading and
+# self-extracting the base archive raced with its own extraction
+# finishing, and even once that was fixed, `pacman` (by bare name, then
+# by full path, `.exe` included) never resolved to an actual file when
+# invoked as `bash -lc` from a plain PowerShell step - something about
+# that setup differs from a properly-initialized MSYS2 session in a way
+# worth not re-debugging by hand.
 #
 # Triggered by the Release workflow (release.yml) *completing*, rather
 # than the same tag push, because uploading into that release requires
@@ -36,72 +45,30 @@ jobs:
     if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     runs-on: windows-latest
     steps:
-      - name: Download MSYS2 base
-        shell: pwsh
-        run: |
-          $url = 'https://github.com/msys2/msys2-installer/releases/download/nightly-x86_64/msys2-base-x86_64-latest.sfx.exe'
-          Write-Host "Downloading $url"
-          Invoke-WebRequest -Uri $url -OutFile msys2-base.sfx.exe
-          # Self-extracting 7-Zip archive containing a top-level msys64\
-          # folder: -y accepts the license/skips prompts, -oC:\ (no
-          # space) sets the destination's parent directory.
-          & .\msys2-base.sfx.exe -y "-oC:\"
+      - name: Set up MSYS2 and install git
+        id: msys2
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MSYS
+          update: true
+          install: git
 
-          # This particular sfx stub can return before extraction has
-          # actually finished flushing every file to disk (observed:
-          # usr\bin\bash.exe usable immediately, usr\bin\pacman.exe -
-          # alphabetically later in the archive - not yet present),
-          # so wait for pacman.exe specifically rather than trusting
-          # that the process having exited means extraction is done.
-          $pacmanPath = 'C:\msys64\usr\bin\pacman.exe'
-          $deadline = (Get-Date).AddMinutes(2)
-          while (-not (Test-Path $pacmanPath) -and (Get-Date) -lt $deadline) {
-            Start-Sleep -Seconds 2
-          }
-          if (-not (Test-Path $pacmanPath)) {
-            throw "extraction did not produce $pacmanPath within the timeout"
-          }
-
-      - name: Bootstrap MSYS2 and install git
-        shell: pwsh
-        run: |
-          # Mirrors the sequence the official github.com/msys2/setup-msys2
-          # action uses: the base archive's own runtime is stale relative
-          # to MSYS2's live package repos, and the first update pass
-          # commonly can't finish because it needs to replace
-          # usr\bin\msys-2.0.dll itself while a pacman-spawned signature
-          # verification helper still has it open - the taskkill clears
-          # that before the second pass, which then completes.
-          #
-          # pacman is invoked by its exact full path, .exe included: bare
-          # "pacman" failed to resolve via $PATH (while bash/sed did, in
-          # the same session), and "/usr/bin/pacman" (no extension) then
-          # failed too - bash's PATH search auto-tries name and name.exe,
-          # but that auto-append does NOT happen for an explicit path
-          # containing a slash, so the .exe suffix has to be spelled out.
-          $bash = 'C:\msys64\usr\bin\bash.exe'
-          $pacman = '/usr/bin/pacman.exe'
-
-          & $bash '-lc' 'uname -a'
-          & $bash '-lc' "sed -i 's/^CheckSpace/#CheckSpace/g' /etc/pacman.conf"
-          & $bash '-lc' "$pacman -Syuu --noconfirm --overwrite '*'" 2>&1 | Out-Null
-          taskkill /F /FI "MODULES eq msys-2.0.dll" 2>&1 | Out-Null
-          & $bash '-lc' "$pacman -Syuu --noconfirm --overwrite '*'"
-
-          & $bash '-lc' "$pacman -S --needed --noconfirm --overwrite '*' git"
-          if (-not (Test-Path 'C:\msys64\usr\bin\git.exe')) {
-            throw 'pacman did not install git'
-          }
-
-          # Drop pacman's downloaded package cache - not needed at
-          # runtime, and it's a meaningful chunk of the archive size.
-          & $bash '-lc' "$pacman -Scc --noconfirm"
+      - name: Drop pacman's package cache
+        shell: msys2 {0}
+        run: pacman -Scc --noconfirm
+        # Not needed at runtime, and it's a meaningful chunk of the
+        # archive size otherwise.
 
       - name: Package
         shell: pwsh
+        env:
+          MSYS2_LOCATION: ${{ steps.msys2.outputs.msys2-location }}
         run: |
+          if (-not (Test-Path "$env:MSYS2_LOCATION\usr\bin\git.exe")) {
+            throw "$env:MSYS2_LOCATION\usr\bin\git.exe not found after setup-msys2"
+          }
           $sevenZip = "$env:ProgramFiles\7-Zip\7z.exe"
-          & $sevenZip a -tzip patou-msys2-x86_64.zip C:\msys64
+          & $sevenZip a -tzip patou-msys2-x86_64.zip $env:MSYS2_LOCATION
           if ($LASTEXITCODE -ne 0) { throw "7z exited with code $LASTEXITCODE" }
 
       - name: Upload artifact
