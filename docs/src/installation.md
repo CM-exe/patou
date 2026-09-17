@@ -89,7 +89,10 @@ regardless of what launched it. Patou's banner and mintty color theme
 are layered on through this same MSYS/Cygwin-style customization
 mechanism (an `etc/profile.d/*.sh` script, sourced automatically by
 every login shell, and `etc/minttyrc`, mintty's default config file).
-The result: a window titled "Patou Bash", using
+The result: a window titled "Patou Bash - `<current directory>`" (updated
+as you `cd` around, via the same profile.d script — mintty starts with a
+plain "Patou Bash" title before the shell's first prompt overrides it),
+using
 [`assets/favicon.ico`](https://github.com/CM-exe/patou/blob/main/assets/favicon.ico)
 as its icon (both in the window/taskbar and for taskbar grouping —
 mintty's `-i` accepts any executable with an icon resource, and

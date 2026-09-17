@@ -88,7 +88,22 @@ __patou_git_branch() {
     printf ' \033[1;%sm(%s)\033[0m' "$color" "$branch"
 }
 
+# Keeps the standalone mintty window's title as "Patou Bash - <cwd>",
+# updated on every prompt draw so it tracks wherever you've since cd'd to
+# - mintty starts with a plain "Patou Bash" title (see the `-t` argument
+# in launch_branded_mintty in this same source file), which this then
+# immediately overrides. Only for that standalone window, not the VS Code
+# integrated-terminal profile (see Add-VsCodeTerminalProfile in
+# scripts/install.ps1): mintty sets TERM_PROGRAM=mintty automatically,
+# distinguishing it from VS Code's own TERM_PROGRAM=vscode, whose terminal
+# tab title VS Code itself already owns.
+__patou_set_title() {
+    [ "$TERM_PROGRAM" = "mintty" ] || return
+    printf '\033]0;Patou Bash - %s\007' "$PWD"
+}
+
 __patou_set_prompt() {
+    __patou_set_title
     PS1='\[\033[32m\]\u@\h \[\033[35m\]\w\[\033[0m\]'"$(__patou_git_branch)"'\n\$ '
 }
 
