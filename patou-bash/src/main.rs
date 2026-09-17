@@ -1,28 +1,34 @@
 // Native launcher for the "Open Patou bash here" context menu entry
 // (registered by `patou init`/the install scripts). Windows-only.
 //
-// Rather than reimplementing what launching Git Bash involves (finding
-// mintty, wiring up bash, setting up the environment...), this reuses
-// Git for Windows' own launcher, `git-bash.exe` - exactly the binary the
-// official installer's own "Git Bash Here" shortcut runs, with the same
-// `--cd=<dir>` argument it uses. Patou's copy of it comes from its own
-// bundled Git for Windows install (extracted by the install scripts into
-// a `git\` folder next to this exe - see scripts/install.ps1 /
-// scripts/install.cmd), so patou-bash is self-contained: it works even
-// on a machine with no system-wide Git for Windows install. If the
-// bundled copy is somehow missing, it falls back to a system install
-// instead of just giving up (but leaves that one exactly as Git for
-// Windows configured it - see `try_run`).
+// For its own bundled Git for Windows copy (extracted by the install
+// scripts into a `git\` folder next to this exe - see
+// scripts/install.ps1 / scripts/install.cmd), this launches
+// `usr\bin\mintty.exe` directly with the exact recipe Git for Windows'
+// own `git-bash.exe` uses (extracted from its embedded command-line
+// resource: `--nodaemon -o AppID=... -o AppLaunchCmd=... -o AppName=...
+// -i <exe> --store-taskbar-properties -- /usr/bin/bash --login -i`),
+// substituting Patou's own icon/name - `git-bash.exe` can't be reused
+// as-is for this, since it hardcodes `-i <itself>`, always showing Git's
+// icon regardless of what launched it. `patou-bash.exe` itself is the
+// icon source (`-i`): it already carries `assets/favicon.ico` as its own
+// PE resource (see `build.rs`), and mintty's `-i FILE` accepts any
+// executable with an icon resource, not just `.ico` files.
+//
+// If that bundled copy is somehow missing, this falls back to a system
+// Git for Windows install instead of just giving up - there, it reuses
+// `git-bash.exe` as-is (`--cd=<dir>`, same as the official installer's
+// own "Git Bash Here" shortcut), deliberately NOT rebranding it: it's
+// the user's own copy, shared with their everyday Git Bash use.
 //
 // Patou's banner and mintty color theme are layered on through Git for
 // Windows' own customization points, applied only to its own bundled
 // copy: an `etc/profile.d/*.sh` script (sourced automatically by every
 // login shell) and `etc/minttyrc` (mintty's default config file) - see
-// `customize_bundled_git`. No custom shell script or mintty command-line
-// flags needed.
+// `customize_bundled_git`.
 //
 // No console of its own (`windows_subsystem = "windows"`): it either
-// hands off to git-bash.exe or fails silently, logging to
+// hands off to mintty/git-bash.exe or fails silently, logging to
 // patou-bash-error.log next to itself so a failure is still diagnosable.
 #![windows_subsystem = "windows"]
 
@@ -40,6 +46,7 @@ fn main() {
 #[cfg(windows)]
 mod windows_only {
     use std::env;
+    use std::ffi::OsString;
     use std::fs;
     use std::io;
     use std::path::{Path, PathBuf};
@@ -59,42 +66,85 @@ mod windows_only {
             .parent()
             .ok_or_else(|| io::Error::other("patou-bash.exe has no parent directory"))?;
 
-        let bundled = install_dir.join("git");
-        let git_root = if git_bash_exe(&bundled).is_file() {
-            customize_bundled_git(&bundled, install_dir)?;
-            bundled
-        } else {
-            // No customization here: this is the *user's* system Git for
-            // Windows install, shared with their own everyday Git Bash
-            // use, not patou's private copy - leave its banner/theme
-            // alone.
-            find_system_git_install().ok_or_else(|| {
-                io::Error::other(
-                    "no usable Git for Windows found: checked the bundled `git\\` \
-                     folder next to patou-bash.exe, the registry, common install \
-                     locations, and `git`/`where` on PATH",
-                )
-            })?
-        };
-
         // The target folder comes from the context menu's %V/%1
-        // substitution (the first argument). git-bash.exe's own --cd
-        // handles a plain Windows path directly - same as the official
-        // "Git Bash Here" shortcut (`git-bash.exe --cd="%V"`).
+        // substitution (the first argument).
         let target_dir = env::args_os().nth(1).map(PathBuf::from).filter(|p| p.is_dir());
 
-        let mut cmd = Command::new(git_bash_exe(&git_root));
-        if let Some(dir) = &target_dir {
-            let mut arg = std::ffi::OsString::from("--cd=");
-            arg.push(dir);
-            cmd.arg(arg);
+        let bundled = install_dir.join("git");
+        if mintty_exe(&bundled).is_file() {
+            customize_bundled_git(&bundled, install_dir)?;
+            return launch_branded_mintty(&bundled, &exe, target_dir.as_deref());
+        }
+
+        // No branding here: this is the *user's* system Git for Windows
+        // install, shared with their own everyday Git Bash use, not
+        // patou's private copy - reuse its own git-bash.exe unmodified
+        // rather than showing Patou's icon on somebody else's shell.
+        let system_root = find_system_git_install().ok_or_else(|| {
+            io::Error::other(
+                "no usable Git for Windows found: checked the bundled `git\\` \
+                 folder next to patou-bash.exe, the registry, common install \
+                 locations, and `git`/`where` on PATH",
+            )
+        })?;
+        launch_system_git_bash(&system_root, target_dir.as_deref())
+    }
+
+    fn mintty_exe(git_root: &Path) -> PathBuf {
+        git_root.join("usr").join("bin").join("mintty.exe")
+    }
+
+    fn git_bash_exe(git_root: &Path) -> PathBuf {
+        git_root.join("git-bash.exe")
+    }
+
+    /// Launches patou's bundled mintty directly, mirroring `git-bash.exe`'s
+    /// own proven invocation (see the module docs) but with Patou's own
+    /// icon/name: `own_exe` (this running patou-bash.exe, already carrying
+    /// `assets/favicon.ico` as its PE icon resource) is what mintty's `-i`
+    /// extracts the window/taskbar icon from.
+    fn launch_branded_mintty(git_root: &Path, own_exe: &Path, target_dir: Option<&Path>) -> io::Result<()> {
+        let mut cmd = Command::new(mintty_exe(git_root));
+        cmd.arg("--nodaemon")
+            .arg("-o")
+            .arg("AppID=Patou.Bash")
+            .arg("-o")
+            .arg(app_launch_cmd_option(own_exe))
+            .arg("-o")
+            .arg("AppName=Patou Bash")
+            .arg("-i")
+            .arg(own_exe)
+            .arg("--store-taskbar-properties")
+            .arg("-t")
+            .arg("Patou Bash")
+            .arg("--")
+            .arg("/usr/bin/bash")
+            .arg("--login")
+            .arg("-i");
+        if let Some(dir) = target_dir {
+            cmd.current_dir(dir);
         }
         cmd.spawn()?;
         Ok(())
     }
 
-    fn git_bash_exe(git_root: &Path) -> PathBuf {
-        git_root.join("git-bash.exe")
+    fn app_launch_cmd_option(own_exe: &Path) -> OsString {
+        let mut opt = OsString::from("AppLaunchCmd=");
+        opt.push(own_exe);
+        opt
+    }
+
+    /// Reuses a system Git for Windows install's own launcher as-is - it
+    /// already knows how to find its own mintty, icon, and environment.
+    fn launch_system_git_bash(git_root: &Path, target_dir: Option<&Path>) -> io::Result<()> {
+        let mut cmd = Command::new(git_bash_exe(git_root));
+        if let Some(dir) = target_dir {
+            let mut arg = OsString::from("--cd=");
+            arg.push(dir);
+            cmd.arg(arg);
+        }
+        cmd.spawn()?;
+        Ok(())
     }
 
     /// Writes Patou's banner (as an `/etc/profile.d` script, sourced by
