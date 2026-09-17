@@ -4,7 +4,7 @@ default-members = [".", "patou-bash"]
 
 [package]
 name = "patou"
-version = "0.1.1"
+version = "0.1.21"
 edition = "2024"
 
 [dependencies]
