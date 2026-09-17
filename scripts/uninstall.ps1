@@ -28,6 +28,14 @@ foreach ($key in 'HKCU:\Software\Classes\Directory\Background\shell\PatouBashHer
     }
 }
 
+# The "Patou Bash" Start Menu shortcut scripts/install.ps1's
+# Add-StartMenuShortcut added, if present.
+$shortcutPath = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs\Patou Bash.lnk'
+if (Test-Path $shortcutPath) {
+    Remove-Item -Force $shortcutPath
+    Write-Host "Removed $shortcutPath"
+}
+
 # patou-bash.exe itself, its error log, and patou-shell.sh/patou-bash.minttyrc
 # left behind by older patou-bash.exe versions (now written inside the
 # bundled msys64\ folder below instead, so removing that covers current ones).

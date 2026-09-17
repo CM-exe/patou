@@ -34,6 +34,14 @@ for %%K in (
   )
 )
 
+:: The "Patou Bash" Start Menu shortcut scripts/install.cmd's
+:: add_start_menu_shortcut added, if present.
+set "shortcut_path=%APPDATA%\Microsoft\Windows\Start Menu\Programs\Patou Bash.lnk"
+if exist "%shortcut_path%" (
+  del /f /q "%shortcut_path%"
+  echo Removed %shortcut_path%
+)
+
 :: patou-bash.exe itself, its error log, and patou-shell.sh/patou-bash.minttyrc
 :: left behind by older patou-bash.exe versions (now written inside the
 :: bundled msys64\ folder below instead, so removing that covers current ones).

@@ -68,6 +68,7 @@ if errorlevel 1 (
 if not defined PATOU_SKIP_BASH_HERE (
   call :install_bundled_msys2
   call :add_patou_bash_here
+  call :add_start_menu_shortcut
 )
 
 endlocal
@@ -160,6 +161,40 @@ if errorlevel 1 (
 )
 del /f /q "%reg_file%" >nul 2>&1
 echo Added 'Open Patou bash here' to the folder right-click menu
+
+endlocal
+goto :eof
+
+:: Adds a "Patou Bash" shortcut to the current user's Start Menu, so it
+:: shows up when searching the Start Menu like any other installed app -
+:: per-user (%APPDATA%\...), matching the rest of this no-admin install.
+:: Uses a small generated VBScript (cscript, built into every Windows
+:: version) to create the .lnk file - no PowerShell needed.
+:add_start_menu_shortcut
+setlocal
+
+set "exe_path=%install_dir%\patou-bash.exe"
+set "start_menu_dir=%APPDATA%\Microsoft\Windows\Start Menu\Programs"
+if not exist "%start_menu_dir%" mkdir "%start_menu_dir%"
+set "shortcut_path=%start_menu_dir%\Patou Bash.lnk"
+set "vbs_file=%TEMP%\patou-shortcut-%RANDOM%.vbs"
+
+echo Set oWS = WScript.CreateObject("WScript.Shell")>"%vbs_file%"
+echo Set oLink = oWS.CreateShortcut("%shortcut_path%")>>"%vbs_file%"
+echo oLink.TargetPath = "%exe_path%">>"%vbs_file%"
+echo oLink.IconLocation = "%exe_path%,0">>"%vbs_file%"
+echo oLink.WorkingDirectory = "%USERPROFILE%">>"%vbs_file%"
+echo oLink.Description = "Open a Patou-branded Git Bash session">>"%vbs_file%"
+echo oLink.Save>>"%vbs_file%"
+
+cscript //nologo //b "%vbs_file%"
+del /f /q "%vbs_file%" >nul 2>&1
+
+if exist "%shortcut_path%" (
+  echo Added 'Patou Bash' to the Start Menu
+) else (
+  echo note: failed to add the 'Patou Bash' Start Menu shortcut
+)
 
 endlocal
 goto :eof

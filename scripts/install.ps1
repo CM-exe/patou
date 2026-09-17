@@ -85,6 +85,28 @@ function Add-PatouBashHere {
     Write-Host "Added 'Open Patou bash here' to the folder right-click menu"
 }
 
+# Adds a "Patou Bash" shortcut to the current user's Start Menu, so it
+# shows up when searching the Start Menu like any other installed app -
+# per-user (%APPDATA%\...), matching the rest of this no-admin install.
+function Add-StartMenuShortcut {
+    param([string]$InstallDir)
+
+    $exePath = Join-Path $InstallDir 'patou-bash.exe'
+    $startMenuDir = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs'
+    New-Item -ItemType Directory -Force -Path $startMenuDir | Out-Null
+    $shortcutPath = Join-Path $startMenuDir 'Patou Bash.lnk'
+
+    $shell = New-Object -ComObject WScript.Shell
+    $shortcut = $shell.CreateShortcut($shortcutPath)
+    $shortcut.TargetPath = $exePath
+    $shortcut.IconLocation = "$exePath,0"
+    $shortcut.WorkingDirectory = $env:USERPROFILE
+    $shortcut.Description = 'Open a Patou-branded Git Bash session'
+    $shortcut.Save()
+
+    Write-Host "Added 'Patou Bash' to the Start Menu"
+}
+
 $repo = 'CM-exe/patou'
 $version = if ($env:PATOU_VERSION) { $env:PATOU_VERSION } else { 'latest' }
 $installDir = if ($env:PATOU_INSTALL_DIR) { $env:PATOU_INSTALL_DIR } else { "$env:LOCALAPPDATA\Patou\bin" }
@@ -126,6 +148,7 @@ if (-not $env:PATOU_SKIP_BASH_HERE) {
     try {
         Install-BundledMsys2 -InstallDir $installDir
         Add-PatouBashHere -InstallDir $installDir
+        Add-StartMenuShortcut -InstallDir $installDir
     } catch {
         Write-Host "note: could not set up the 'Open Patou bash here' context menu ($($_.Exception.Message))"
     }

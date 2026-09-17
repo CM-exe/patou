@@ -39,10 +39,12 @@ rather read them first or download and run them locally.
 
 ### "Open Patou bash here" (Windows)
 
-On Windows, `install.ps1`/`install.cmd` also install `patou-bash.exe` and
-add an **Open Patou bash here** entry to the folder right-click menu.
-This adds a one-time, fairly large (~150–300 MB) download on top of the
-plain `patou.exe` install; set `PATOU_SKIP_BASH_HERE` to skip it and
+On Windows, `install.ps1`/`install.cmd` also install `patou-bash.exe`,
+add an **Open Patou bash here** entry to the folder right-click menu, and
+add a **Patou Bash** shortcut to the Start Menu (so it shows up when
+searching the Start Menu, like any other installed app). This adds a
+one-time, fairly large (~150–300 MB) download on top of the plain
+`patou.exe` install; set `PATOU_SKIP_BASH_HERE` to skip all of it and
 install just `patou.exe`.
 
 `patou-bash.exe` is a small native launcher, built from its own package
@@ -51,7 +53,8 @@ in the repository
 a `cargo build` workspace member alongside the main `patou` package)
 using [`assets/favicon.ico`](https://github.com/CM-exe/patou/blob/main/assets/favicon.ico)
 as its icon like any other installed app. Uninstalling removes the
-binary, the bundled MSYS2 install, and the menu entry again.
+binary, the bundled MSYS2 install, the menu entry, and the Start Menu
+shortcut again.
 
 It's self-contained rather than depending on a system-wide Git for
 Windows install: `install.ps1`/`install.cmd` download a prebuilt
@@ -151,8 +154,8 @@ curl -fsSL https://raw.githubusercontent.com/CM-exe/patou/main/scripts/uninstall
 
 Each removes the `patou` binary from its install directory — set
 `PATOU_INSTALL_DIR` if you installed to a non-default location — and, on
-Windows, also removes the "Open Patou bash here" context menu entry if
-`install.ps1`/`install.cmd` added one.
+Windows, also removes the "Open Patou bash here" context menu entry and
+Start Menu shortcut if `install.ps1`/`install.cmd` added them.
 
 **Installed with `cargo install --path .`:**
 
