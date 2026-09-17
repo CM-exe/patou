@@ -1,7 +1,9 @@
 @echo off
 :: Installs the patou CLI by downloading a prebuilt binary from GitHub
 :: Releases, using curl and tar (built into Windows 10 1803+ / Windows 11).
-:: No Rust toolchain, no PowerShell required.
+:: No Rust toolchain, no PowerShell required to run this script itself
+:: (though setting up the optional bundled MSYS2 below does use
+:: PowerShell as an implementation detail - see :install_bundled_msys2).
 ::
 :: Usage:
 ::   curl -fsSL https://raw.githubusercontent.com/CM-exe/patou/main/scripts/install.cmd -o install.cmd && install.cmd
@@ -10,13 +12,15 @@
 ::   PATOU_VERSION      release tag to install, e.g. v0.2.0 (default: latest)
 ::   PATOU_INSTALL_DIR  directory to install the binary into
 ::                      (default: %LOCALAPPDATA%\Patou\bin)
-::   PATOU_SKIP_BASH_HERE  set to skip patou-bash.exe and the bundled Git
-::                         for Windows download (~60 MB) entirely - only
+::   PATOU_SKIP_BASH_HERE  set to skip patou-bash.exe and the bundled
+::                         MSYS2 install (~150-300 MB, downloaded from
+::                         MSYS2's own package mirrors) entirely - only
 ::                         patou.exe gets installed
-::   PATOU_GIT_TAG      Git for Windows release tag to bundle
-::                      (default: v2.55.0.windows.5)
-::   PATOU_GIT_ASSET    PortableGit asset filename from that release
-::                      (default: PortableGit-2.55.0.5-64-bit.7z.exe)
+::   PATOU_MSYS2_ASSET_URL  MSYS2 base sfx archive to bundle (default:
+::                          the latest from msys2/msys2-installer -
+::                          MSYS2 only keeps the latest nightly base
+::                          archive, so there isn't an older release to
+::                          pin to)
 
 setlocal
 
@@ -66,7 +70,7 @@ if errorlevel 1 (
 )
 
 if not defined PATOU_SKIP_BASH_HERE (
-  call :install_bundled_git
+  call :install_bundled_msys2
   call :add_patou_bash_here
 )
 
@@ -76,46 +80,63 @@ exit /b 0
 :: patou-bash.exe (built from patou-bash/src/main.rs) is a self-contained
 :: "Open Patou bash here" launcher: it doesn't depend on a system-wide
 :: Git for Windows install, because this gives it its own private copy -
-:: Git for Windows' official "PortableGit" distribution, extracted into a
-:: `git\` folder right next to patou-bash.exe. See scripts/uninstall.cmd
+:: a standalone MSYS2 install (https://www.msys2.org/), extracted and
+:: bootstrapped into a `msys64\` folder right next to patou-bash.exe,
+:: with `git` installed into it via `pacman`. See scripts/uninstall.cmd
 :: to remove what this adds.
-:install_bundled_git
+::
+:: The bootstrap itself (first bash run, a two-pass `pacman -Syuu` with
+:: a `taskkill` in between, then installing `git`) needs more branching
+:: logic than plain batch handles comfortably, so it's done by a small
+:: generated PowerShell script instead - the one place these install
+:: scripts use PowerShell as an implementation detail; the overall
+:: install still needs no PowerShell to run install.cmd itself.
+:install_bundled_msys2
 setlocal
 
-set "git_dir=%install_dir%\git"
-if exist "%git_dir%\usr\bin\mintty.exe" (
+set "msys_dir=%install_dir%\msys64"
+if exist "%msys_dir%\usr\bin\bash.exe" if exist "%msys_dir%\usr\bin\git.exe" (
   endlocal
   goto :eof
 )
 
-if "%PATOU_GIT_TAG%"=="" (set "git_tag=v2.55.0.windows.5") else (set "git_tag=%PATOU_GIT_TAG%")
-if "%PATOU_GIT_ASSET%"=="" (set "git_asset=PortableGit-2.55.0.5-64-bit.7z.exe") else (set "git_asset=%PATOU_GIT_ASSET%")
-set "git_url=https://github.com/git-for-windows/git/releases/download/%git_tag%/%git_asset%"
-set "git_tmp=%TEMP%\patou-portablegit-%RANDOM%.7z.exe"
+set "ps1_file=%TEMP%\patou-msys2-bootstrap-%RANDOM%.ps1"
 
-echo Downloading %git_url% (bundled Git for Windows, ~60 MB, one-time)
-curl -fsSL "%git_url%" -o "%git_tmp%"
-if errorlevel 1 (
-  echo note: could not download bundled Git for Windows - 'Open Patou bash here' will do nothing until Git for Windows is available
-  del /f /q "%git_tmp%" >nul 2>&1
-  endlocal
-  goto :eof
-)
+echo $ErrorActionPreference = 'Stop'>"%ps1_file%"
+echo $installDir = $env:install_dir>>"%ps1_file%"
+echo $msysDir = Join-Path $installDir 'msys64'>>"%ps1_file%"
+echo $bashPath = Join-Path $msysDir 'usr\bin\bash.exe'>>"%ps1_file%"
+echo $gitPath = Join-Path $msysDir 'usr\bin\git.exe'>>"%ps1_file%"
+echo if ((Test-Path $bashPath) -and (Test-Path $gitPath)) { exit 0 }>>"%ps1_file%"
+echo $msys2Url = if ($env:PATOU_MSYS2_ASSET_URL) { $env:PATOU_MSYS2_ASSET_URL } else { 'https://github.com/msys2/msys2-installer/releases/download/nightly-x86_64/msys2-base-x86_64-latest.sfx.exe' }>>"%ps1_file%"
+echo $tmpFile = Join-Path $env:TEMP ([System.Guid]::NewGuid().ToString() + '.sfx.exe')>>"%ps1_file%"
+echo try {>>"%ps1_file%"
+echo   if (-not (Test-Path $bashPath)) {>>"%ps1_file%"
+echo Write-Host "Downloading $msys2Url (bundled MSYS2 base, ~45 MB, one-time)">>"%ps1_file%"
+echo     Invoke-WebRequest -Uri $msys2Url -OutFile $tmpFile>>"%ps1_file%"
+echo     ^& $tmpFile -y "-o$installDir" ^| Out-Null>>"%ps1_file%"
+echo     if ($LASTEXITCODE -ne 0 -or -not (Test-Path $bashPath)) { throw "extraction did not produce $bashPath" }>>"%ps1_file%"
+echo   }>>"%ps1_file%"
+echo   Write-Host "Bootstrapping bundled MSYS2 (this can take a few minutes)...">>"%ps1_file%"
+echo   ^& $bashPath '-lc' 'uname -a' ^| Out-Null>>"%ps1_file%"
+echo   ^& $bashPath '-lc' "sed -i 's/^^CheckSpace/#CheckSpace/g' /etc/pacman.conf" ^| Out-Null>>"%ps1_file%"
+echo   ^& $bashPath '-lc' "pacman -Syuu --noconfirm --overwrite '*'" 2^>^&1 ^| Out-Null>>"%ps1_file%"
+echo   ^& taskkill /F /FI "MODULES eq msys-2.0.dll" 2^>^&1 ^| Out-Null>>"%ps1_file%"
+echo   ^& $bashPath '-lc' "pacman -Syuu --noconfirm --overwrite '*'" ^| Out-Null>>"%ps1_file%"
+echo   Write-Host "Installing git into the bundled MSYS2...">>"%ps1_file%"
+echo   ^& $bashPath '-lc' "pacman -S --needed --noconfirm --overwrite '*' git" ^| Out-Null>>"%ps1_file%"
+echo   if (-not (Test-Path $gitPath)) { throw "pacman did not install $gitPath" }>>"%ps1_file%"
+echo   Write-Host "Installed bundled MSYS2 + git to $msysDir">>"%ps1_file%"
+echo } catch {>>"%ps1_file%"
+echo   Write-Host "note: could not set up bundled MSYS2 ($($_.Exception.Message)) - 'Open Patou bash here' will fall back to a system-wide Git for Windows install if one is found, or do nothing otherwise">>"%ps1_file%"
+echo   Remove-Item -Recurse -Force $msysDir -ErrorAction SilentlyContinue>>"%ps1_file%"
+echo } finally {>>"%ps1_file%"
+echo   Remove-Item -Force $tmpFile -ErrorAction SilentlyContinue>>"%ps1_file%"
+echo }>>"%ps1_file%"
 
-if not exist "%git_dir%" mkdir "%git_dir%"
-:: The download is a self-extracting 7-Zip archive: -y accepts the
-:: license/skips prompts, -o<dir> (no space) sets the destination.
-"%git_tmp%" -y "-o%git_dir%" >nul
-del /f /q "%git_tmp%" >nul 2>&1
-
-if not exist "%git_dir%\usr\bin\mintty.exe" (
-  echo note: extracting bundled Git for Windows failed - 'Open Patou bash here' will do nothing until Git for Windows is available
-  rmdir /s /q "%git_dir%" >nul 2>&1
-  endlocal
-  goto :eof
-)
-
-echo Installed bundled Git for Windows to %git_dir%
+echo Setting up bundled MSYS2 (this can take a few minutes)...
+powershell -NoProfile -ExecutionPolicy Bypass -File "%ps1_file%"
+del /f /q "%ps1_file%" >nul 2>&1
 
 endlocal
 goto :eof

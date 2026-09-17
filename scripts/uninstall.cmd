@@ -36,7 +36,7 @@ for %%K in (
 
 :: patou-bash.exe itself, its error log, and patou-shell.sh/patou-bash.minttyrc
 :: left behind by older patou-bash.exe versions (now written inside the
-:: bundled git\ folder below instead, so removing that covers current ones).
+:: bundled msys64\ folder below instead, so removing that covers current ones).
 for %%N in (patou-bash.exe patou-shell.sh patou-bash.minttyrc patou-bash-error.log) do (
   if exist "%install_dir%\%%N" (
     del /f /q "%install_dir%\%%N"
@@ -44,12 +44,17 @@ for %%N in (patou-bash.exe patou-shell.sh patou-bash.minttyrc patou-bash-error.l
   )
 )
 
-:: The bundled Git for Windows copy scripts/install.cmd extracted for
-:: patou-bash.exe (~60 MB - the main reason to clean this up specifically
-:: rather than leaving it behind).
-if exist "%install_dir%\git" (
-  rmdir /s /q "%install_dir%\git"
-  echo Removed %install_dir%\git
+:: The bundled MSYS2 install scripts/install.cmd extracted (and installed
+:: git into) for patou-bash.exe - large enough (150-300 MB) to be worth
+:: cleaning up specifically rather than leaving it behind. `git` is the
+:: older, now-unused bundle location from before patou-bash.exe switched
+:: from Git for Windows' PortableGit to standalone MSYS2 - removed too,
+:: for anyone upgrading from that version.
+for %%N in (msys64 git) do (
+  if exist "%install_dir%\%%N" (
+    rmdir /s /q "%install_dir%\%%N"
+    echo Removed %install_dir%\%%N
+  )
 )
 
 endlocal

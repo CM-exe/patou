@@ -8,51 +8,82 @@
 #   PATOU_VERSION      release tag to install, e.g. v0.2.0 (default: latest)
 #   PATOU_INSTALL_DIR  directory to install the binary into
 #                      (default: $env:LOCALAPPDATA\Patou\bin)
-#   PATOU_SKIP_BASH_HERE  set to skip patou-bash.exe and the bundled Git
-#                         for Windows download (~60 MB) entirely - only
+#   PATOU_SKIP_BASH_HERE  set to skip patou-bash.exe and the bundled
+#                         MSYS2 install (~150-300 MB, downloaded from
+#                         MSYS2's own package mirrors) entirely - only
 #                         patou.exe gets installed
-#   PATOU_GIT_TAG      Git for Windows release tag to bundle
-#                      (default: v2.55.0.windows.5)
-#   PATOU_GIT_ASSET    PortableGit asset filename from that release
-#                      (default: PortableGit-2.55.0.5-64-bit.7z.exe)
+#   PATOU_MSYS2_ASSET_URL  MSYS2 base sfx archive to bundle (default: the
+#                          latest from msys2/msys2-installer - MSYS2 only
+#                          keeps the latest nightly base archive, so
+#                          there isn't an older release to pin to)
 
 $ErrorActionPreference = 'Stop'
 
 # patou-bash.exe (built from patou-bash/src/main.rs) is a self-contained
 # "Open Patou bash here" launcher: it doesn't depend on a system-wide Git
 # for Windows install, because this function gives it its own private
-# copy - Git for Windows' official "PortableGit" distribution, extracted
-# into a `git\` folder right next to patou-bash.exe. See
-# scripts/uninstall.ps1 to remove what this adds.
-function Install-BundledGit {
+# copy - a standalone MSYS2 install (https://www.msys2.org/), extracted
+# and bootstrapped into a `msys64\` folder right next to patou-bash.exe,
+# with `git` installed into it via `pacman`. See scripts/uninstall.ps1 to
+# remove what this adds.
+#
+# The bootstrap (first bash run, then a two-pass `pacman -Syuu` with a
+# `taskkill` in between) mirrors the sequence the official
+# github.com/msys2/setup-msys2 GitHub Action uses: the base archive's
+# own runtime is stale relative to MSYS2's live package repos, and the
+# first update pass commonly can't finish because it needs to replace
+# usr\bin\msys-2.0.dll itself while some helper process (spawned by
+# pacman for package signature verification) still has it open - the
+# taskkill clears that before the second pass, which then completes.
+function Install-BundledMsys2 {
     param([string]$InstallDir)
 
-    $gitDir = Join-Path $InstallDir 'git'
-    $minttyPath = Join-Path $gitDir 'usr\bin\mintty.exe'
-    if (Test-Path $minttyPath) {
+    $msysDir = Join-Path $InstallDir 'msys64'
+    $bashPath = Join-Path $msysDir 'usr\bin\bash.exe'
+    $gitPath = Join-Path $msysDir 'usr\bin\git.exe'
+    if ((Test-Path $bashPath) -and (Test-Path $gitPath)) {
         return
     }
 
-    $gitTag = if ($env:PATOU_GIT_TAG) { $env:PATOU_GIT_TAG } else { 'v2.55.0.windows.5' }
-    $gitAsset = if ($env:PATOU_GIT_ASSET) { $env:PATOU_GIT_ASSET } else { 'PortableGit-2.55.0.5-64-bit.7z.exe' }
-    $gitUrl = "https://github.com/git-for-windows/git/releases/download/$gitTag/$gitAsset"
+    $msys2Url = if ($env:PATOU_MSYS2_ASSET_URL) {
+        $env:PATOU_MSYS2_ASSET_URL
+    } else {
+        'https://github.com/msys2/msys2-installer/releases/download/nightly-x86_64/msys2-base-x86_64-latest.sfx.exe'
+    }
 
-    $tmpFile = Join-Path $env:TEMP ([System.Guid]::NewGuid().ToString() + '.7z.exe')
+    $tmpFile = Join-Path $env:TEMP ([System.Guid]::NewGuid().ToString() + '.sfx.exe')
     try {
-        Write-Host "Downloading $gitUrl (bundled Git for Windows, ~60 MB, one-time)"
-        Invoke-WebRequest -Uri $gitUrl -OutFile $tmpFile
+        if (-not (Test-Path $bashPath)) {
+            Write-Host "Downloading $msys2Url (bundled MSYS2 base, ~45 MB, one-time)"
+            Invoke-WebRequest -Uri $msys2Url -OutFile $tmpFile
 
-        New-Item -ItemType Directory -Force -Path $gitDir | Out-Null
-        # The download is a self-extracting 7-Zip archive: -y accepts the
-        # license/skips prompts, -o<dir> (no space) sets the destination.
-        & $tmpFile -y "-o$gitDir" | Out-Null
-        if ($LASTEXITCODE -ne 0 -or -not (Test-Path $minttyPath)) {
-            throw "extraction did not produce $minttyPath (exit code $LASTEXITCODE)"
+            # The download is a self-extracting 7-Zip archive containing
+            # a top-level msys64\ folder: -y accepts the license/skips
+            # prompts, -o<dir> (no space) sets the *parent* directory.
+            & $tmpFile -y "-o$InstallDir" | Out-Null
+            if ($LASTEXITCODE -ne 0 -or -not (Test-Path $bashPath)) {
+                throw "extraction did not produce $bashPath (exit code $LASTEXITCODE)"
+            }
         }
-        Write-Host "Installed bundled Git for Windows to $gitDir"
+
+        Write-Host "Bootstrapping bundled MSYS2 (this can take a few minutes)..."
+        & $bashPath '-lc' 'uname -a' | Out-Null
+
+        & $bashPath '-lc' "sed -i 's/^CheckSpace/#CheckSpace/g' /etc/pacman.conf" | Out-Null
+        & $bashPath '-lc' "pacman -Syuu --noconfirm --overwrite '*'" 2>&1 | Out-Null
+        & taskkill /F /FI "MODULES eq msys-2.0.dll" 2>&1 | Out-Null
+        & $bashPath '-lc' "pacman -Syuu --noconfirm --overwrite '*'" | Out-Null
+
+        Write-Host "Installing git into the bundled MSYS2..."
+        & $bashPath '-lc' "pacman -S --needed --noconfirm --overwrite '*' git" | Out-Null
+        if (-not (Test-Path $gitPath)) {
+            throw "pacman did not install $gitPath"
+        }
+
+        Write-Host "Installed bundled MSYS2 + git to $msysDir"
     } catch {
-        Write-Host "note: could not install bundled Git for Windows ($($_.Exception.Message)) - 'Open Patou bash here' will do nothing until Git for Windows is available"
-        Remove-Item -Recurse -Force $gitDir -ErrorAction SilentlyContinue
+        Write-Host "note: could not set up bundled MSYS2 ($($_.Exception.Message)) - 'Open Patou bash here' will fall back to a system-wide Git for Windows install if one is found, or do nothing otherwise"
+        Remove-Item -Recurse -Force $msysDir -ErrorAction SilentlyContinue
     } finally {
         Remove-Item -Force $tmpFile -ErrorAction SilentlyContinue
     }
@@ -116,7 +147,7 @@ try {
 
 if (-not $env:PATOU_SKIP_BASH_HERE) {
     try {
-        Install-BundledGit -InstallDir $installDir
+        Install-BundledMsys2 -InstallDir $installDir
         Add-PatouBashHere -InstallDir $installDir
     } catch {
         Write-Host "note: could not set up the 'Open Patou bash here' context menu ($($_.Exception.Message))"

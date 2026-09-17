@@ -1,8 +1,8 @@
 // Native launcher for the "Open Patou bash here" context menu entry
 // (registered by `patou init`/the install scripts). Windows-only.
 //
-// For its own bundled Git for Windows copy (extracted by the install
-// scripts into a `git\` folder next to this exe - see
+// For its own bundled standalone MSYS2 install (extracted + bootstrapped
+// by the install scripts into a `msys64\` folder next to this exe - see
 // scripts/install.ps1 / scripts/install.cmd), this launches
 // `usr\bin\mintty.exe` directly with the exact recipe Git for Windows'
 // own `git-bash.exe` uses (extracted from its embedded command-line
@@ -70,7 +70,7 @@ mod windows_only {
         // substitution (the first argument).
         let target_dir = env::args_os().nth(1).map(PathBuf::from).filter(|p| p.is_dir());
 
-        let bundled = install_dir.join("git");
+        let bundled = install_dir.join("msys64");
         if mintty_exe(&bundled).is_file() {
             customize_bundled_git(&bundled, install_dir)?;
             return launch_branded_mintty(&bundled, &exe, target_dir.as_deref());
@@ -82,7 +82,7 @@ mod windows_only {
         // rather than showing Patou's icon on somebody else's shell.
         let system_root = find_system_git_install().ok_or_else(|| {
             io::Error::other(
-                "no usable Git for Windows found: checked the bundled `git\\` \
+                "no usable Git Bash found: checked the bundled `msys64\\` \
                  folder next to patou-bash.exe, the registry, common install \
                  locations, and `git`/`where` on PATH",
             )
@@ -150,9 +150,9 @@ mod windows_only {
     /// Writes Patou's banner (as an `/etc/profile.d` script, sourced by
     /// every login shell automatically) and mintty color theme (as
     /// `etc/minttyrc`, mintty's own default config file) into patou's
-    /// private bundled Git for Windows copy. Safe to call on every
-    /// launch - both are small, idempotent overwrites, so they can't
-    /// drift out of sync with the compiled banner/theme.
+    /// private bundled MSYS2 install. Safe to call on every launch -
+    /// both are small, idempotent overwrites, so they can't drift out of
+    /// sync with the compiled banner/theme.
     fn customize_bundled_git(git_root: &Path, install_dir: &Path) -> io::Result<()> {
         let profile_d = git_root.join("etc").join("profile.d");
         fs::create_dir_all(&profile_d)?;
@@ -173,9 +173,9 @@ mod windows_only {
     fn banner_script(install_dir: &Path) -> String {
         format!(
             "# Patou bash banner - sourced automatically by every login shell\n\
-             # in this bundled Git for Windows copy via /etc/profile. Written by\n\
+             # in this bundled MSYS2 install via /etc/profile. Written by\n\
              # patou-bash.exe on each launch; scripts/uninstall.ps1 and\n\
-             # scripts/uninstall.cmd remove the whole bundled git\\ folder.\n\
+             # scripts/uninstall.cmd remove the whole bundled msys64\\ folder.\n\
              \n\
              cat <<'PATOU_BANNER'\n{banner}\nPATOU_BANNER\n\
              \n\

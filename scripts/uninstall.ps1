@@ -30,7 +30,7 @@ foreach ($key in 'HKCU:\Software\Classes\Directory\Background\shell\PatouBashHer
 
 # patou-bash.exe itself, its error log, and patou-shell.sh/patou-bash.minttyrc
 # left behind by older patou-bash.exe versions (now written inside the
-# bundled git\ folder below instead, so removing that covers current ones).
+# bundled msys64\ folder below instead, so removing that covers current ones).
 foreach ($name in 'patou-bash.exe', 'patou-shell.sh', 'patou-bash.minttyrc', 'patou-bash-error.log') {
     $path = Join-Path $installDir $name
     if (Test-Path $path) {
@@ -39,11 +39,16 @@ foreach ($name in 'patou-bash.exe', 'patou-shell.sh', 'patou-bash.minttyrc', 'pa
     }
 }
 
-# The bundled Git for Windows copy scripts/install.ps1 extracted for
-# patou-bash.exe (~60 MB - the main reason to clean this up specifically
-# rather than leaving it behind).
-$gitDir = Join-Path $installDir 'git'
-if (Test-Path $gitDir) {
-    Remove-Item -Recurse -Force $gitDir
-    Write-Host "Removed $gitDir"
+# The bundled MSYS2 install scripts/install.ps1 extracted (and installed
+# git into) for patou-bash.exe - large enough (150-300 MB) to be worth
+# cleaning up specifically rather than leaving it behind. `git\` is the
+# older, now-unused bundle location from before patou-bash.exe switched
+# from Git for Windows' PortableGit to standalone MSYS2 - removed too,
+# for anyone upgrading from that version.
+foreach ($name in 'msys64', 'git') {
+    $dir = Join-Path $installDir $name
+    if (Test-Path $dir) {
+        Remove-Item -Recurse -Force $dir
+        Write-Host "Removed $dir"
+    }
 }
