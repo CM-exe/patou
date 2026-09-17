@@ -179,6 +179,13 @@ esac
         }
         if let Some(dir) = target_dir {
             cmd.current_dir(dir);
+            // /etc/profile unconditionally `cd`s a login shell to $HOME
+            // unless this is set - the same guard `git-bash.exe`'s own
+            // `--cd` flag sets internally before invoking mintty. Without
+            // it, `Command::current_dir` above only sets mintty's own
+            // starting directory; bash's login init then immediately cds
+            // away from it back to $HOME.
+            cmd.env("CHERE_INVOKING", "1");
         }
         cmd.spawn()?;
         Ok(())
