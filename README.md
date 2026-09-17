@@ -78,7 +78,8 @@ patou check
  - [ ] Add a command to check the current configuration
  - [ ] Add helpful CLI output and diagnostics
  - [X] Provide documentation and examples
- - [ ] Add easy Git CI/CD integration (almost)
+ - [X] Add easy Git CI/CD integration (almost)
+ - [ ] Add integration to VS code terminal and auto VS code settings adding in installation scripts
 
 ### Distribution
 
