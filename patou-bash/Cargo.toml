@@ -1,0 +1,7 @@
+[package]
+name = "patou-bash"
+version = "0.1.1"
+edition = "2024"
+
+[build-dependencies]
+winresource = "0.1.31"

@@ -10,6 +10,13 @@
 ::   PATOU_VERSION      release tag to install, e.g. v0.2.0 (default: latest)
 ::   PATOU_INSTALL_DIR  directory to install the binary into
 ::                      (default: %LOCALAPPDATA%\Patou\bin)
+::   PATOU_SKIP_BASH_HERE  set to skip patou-bash.exe and the bundled Git
+::                         for Windows download (~60 MB) entirely - only
+::                         patou.exe gets installed
+::   PATOU_GIT_TAG      Git for Windows release tag to bundle
+::                      (default: v2.55.0.windows.5)
+::   PATOU_GIT_ASSET    PortableGit asset filename from that release
+::                      (default: PortableGit-2.55.0.5-64-bit.7z.exe)
 
 setlocal
 
@@ -58,16 +65,63 @@ if errorlevel 1 (
   echo   setx PATH "%%PATH%%;%install_dir%"
 )
 
-call :add_patou_bash_here
+if not defined PATOU_SKIP_BASH_HERE (
+  call :install_bundled_git
+  call :add_patou_bash_here
+)
 
 endlocal
 exit /b 0
 
-:: Best-effort: wires up an "Open Patou bash here" folder context menu
-:: entry that runs patou-bash.exe (built from src/bin/patou-bash.rs). That
-:: binary finds Git for Windows and opens a themed Git Bash session itself
-:: - this just points the menu at it. See scripts/uninstall.cmd to remove
-:: what this adds.
+:: patou-bash.exe (built from patou-bash/src/main.rs) is a self-contained
+:: "Open Patou bash here" launcher: it doesn't depend on a system-wide
+:: Git for Windows install, because this gives it its own private copy -
+:: Git for Windows' official "PortableGit" distribution, extracted into a
+:: `git\` folder right next to patou-bash.exe. See scripts/uninstall.cmd
+:: to remove what this adds.
+:install_bundled_git
+setlocal
+
+set "git_dir=%install_dir%\git"
+if exist "%git_dir%\usr\bin\mintty.exe" (
+  endlocal
+  goto :eof
+)
+
+if "%PATOU_GIT_TAG%"=="" (set "git_tag=v2.55.0.windows.5") else (set "git_tag=%PATOU_GIT_TAG%")
+if "%PATOU_GIT_ASSET%"=="" (set "git_asset=PortableGit-2.55.0.5-64-bit.7z.exe") else (set "git_asset=%PATOU_GIT_ASSET%")
+set "git_url=https://github.com/git-for-windows/git/releases/download/%git_tag%/%git_asset%"
+set "git_tmp=%TEMP%\patou-portablegit-%RANDOM%.7z.exe"
+
+echo Downloading %git_url% (bundled Git for Windows, ~60 MB, one-time)
+curl -fsSL "%git_url%" -o "%git_tmp%"
+if errorlevel 1 (
+  echo note: could not download bundled Git for Windows - 'Open Patou bash here' will do nothing until Git for Windows is available
+  del /f /q "%git_tmp%" >nul 2>&1
+  endlocal
+  goto :eof
+)
+
+if not exist "%git_dir%" mkdir "%git_dir%"
+:: The download is a self-extracting 7-Zip archive: -y accepts the
+:: license/skips prompts, -o<dir> (no space) sets the destination.
+"%git_tmp%" -y "-o%git_dir%" >nul
+del /f /q "%git_tmp%" >nul 2>&1
+
+if not exist "%git_dir%\usr\bin\mintty.exe" (
+  echo note: extracting bundled Git for Windows failed - 'Open Patou bash here' will do nothing until Git for Windows is available
+  rmdir /s /q "%git_dir%" >nul 2>&1
+  endlocal
+  goto :eof
+)
+
+echo Installed bundled Git for Windows to %git_dir%
+
+endlocal
+goto :eof
+
+:: Wires up an "Open Patou bash here" folder context menu entry that
+:: runs patou-bash.exe.
 :add_patou_bash_here
 setlocal
 
@@ -100,15 +154,6 @@ if errorlevel 1 (
 )
 del /f /q "%reg_file%" >nul 2>&1
 echo Added 'Open Patou bash here' to the folder right-click menu
-
-set "git_found="
-reg query "HKCU\SOFTWARE\GitForWindows" >nul 2>&1 && set "git_found=1"
-if not defined git_found (
-  reg query "HKLM\SOFTWARE\GitForWindows" >nul 2>&1 && set "git_found=1"
-)
-if not defined git_found (
-  echo note: Git for Windows wasn't found - the menu entry will do nothing until it's installed
-)
 
 endlocal
 goto :eof

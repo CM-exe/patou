@@ -1,9 +1,15 @@
 // Native launcher for the "Open Patou bash here" context menu entry
 // (registered by `patou init`/the install scripts). Windows-only: it
-// finds Git for Windows, writes the helper shell script + mintty theme
-// next to itself, and opens an ordinary Git Bash session - with Patou's
-// banner, Patou already on PATH, and a grey/blue/light-blue mintty theme
-// instead of Git Bash's default palette.
+// uses its own bundled copy of Git for Windows' portable distribution
+// (extracted by the install scripts into a `git\` folder next to this
+// exe - see scripts/install.ps1 / scripts/install.cmd), writes the
+// helper shell script + mintty theme next to itself, and opens an
+// ordinary Git Bash session - with Patou's banner, Patou already on
+// PATH, and a grey/blue/light-blue mintty theme instead of Git Bash's
+// default palette. This makes patou-bash self-contained: it works even
+// on a machine with no system-wide Git for Windows install. If the
+// bundled copy is somehow missing, it falls back to looking for a
+// system install instead of just giving up.
 //
 // No console of its own (`windows_subsystem = "windows"`): it either
 // hands off to mintty or fails silently, logging to patou-bash-error.log
@@ -44,10 +50,11 @@ mod windows_only {
             .parent()
             .ok_or_else(|| io::Error::other("patou-bash.exe has no parent directory"))?;
 
-        let git_install = find_git_install().ok_or_else(|| {
+        let git_install = find_git_install(install_dir).ok_or_else(|| {
             io::Error::other(
-                "Git for Windows not found (checked the registry, common install \
-                 locations, and `git`/`where` on PATH)",
+                "no usable Git for Windows found: checked the bundled `git\\` \
+                 folder next to patou-bash.exe, the registry, common install \
+                 locations, and `git`/`where` on PATH",
             )
         })?;
 
@@ -115,13 +122,23 @@ mod windows_only {
     }
 
     /// Tries several ways to locate a Git for Windows install, roughly in
-    /// order of cost: the registry key the official installer writes
-    /// (fast, but absent for e.g. winget/scoop/portable installs), a few
-    /// common install directories, then `git --exec-path` / `where
-    /// git.exe` for anything else with `git` on PATH. Each candidate is
-    /// only accepted once `mintty_path` under it actually exists, since a
-    /// stale or unrelated match is as good as no match.
-    fn find_git_install() -> Option<PathBuf> {
+    /// order of cost. First, and normally the only one that matters: the
+    /// private copy the install scripts extract into `git\` next to this
+    /// exe, so patou-bash doesn't depend on the system having Git for
+    /// Windows installed at all. If that's missing (a broken/partial
+    /// install, or patou-bash built and run outside of the installer),
+    /// fall back to: the registry key the official installer writes
+    /// (absent for e.g. winget/scoop/portable installs), a few common
+    /// install directories, then `git --exec-path` / `where git.exe` for
+    /// anything else with `git` on PATH. Each candidate is only accepted
+    /// once `mintty_path` under it actually exists, since a stale or
+    /// unrelated match is as good as no match.
+    fn find_git_install(install_dir: &Path) -> Option<PathBuf> {
+        let bundled = install_dir.join("git");
+        if mintty_path(&bundled).is_file() {
+            return Some(bundled);
+        }
+
         for hive in ["HKCU", "HKLM"] {
             if let Some(path) = reg_query_value(hive, r"SOFTWARE\GitForWindows", "InstallPath") {
                 let path = PathBuf::from(path);

@@ -283,6 +283,12 @@ dependencies = [
  "serde",
  "tempfile",
  "toml",
+]
+
+[[package]]
+name = "patou-bash"
+version = "0.1.1"
+dependencies = [
  "winresource",
 ]
 

@@ -43,4 +43,12 @@ for %%N in (patou-bash.exe patou-shell.sh patou-bash.minttyrc patou-bash-error.l
   )
 )
 
+:: The bundled Git for Windows copy scripts/install.cmd extracted for
+:: patou-bash.exe (~60 MB - the main reason to clean this up specifically
+:: rather than leaving it behind).
+if exist "%install_dir%\git" (
+  rmdir /s /q "%install_dir%\git"
+  echo Removed %install_dir%\git
+)
+
 endlocal

@@ -40,25 +40,34 @@ rather read them first or download and run them locally.
 ### "Open Patou bash here" (Windows)
 
 On Windows, `install.ps1`/`install.cmd` also install `patou-bash.exe` and
-add an **Open Patou bash here** entry to the folder right-click menu,
-best-effort — nothing breaks if Git for Windows isn't installed yet, the
-menu entry just won't do anything until it is.
+add an **Open Patou bash here** entry to the folder right-click menu.
+This adds a one-time ~60 MB download (Git for Windows' portable
+distribution, see below) on top of the plain `patou.exe` install; set
+`PATOU_SKIP_BASH_HERE` to skip it and install just `patou.exe`.
 
-`patou-bash.exe` is a small native launcher (built from
-[`src/bin/patou-bash.rs`](https://github.com/CM-exe/patou/blob/main/src/bin/patou-bash.rs),
+`patou-bash.exe` is a small native launcher, built from its own package
+in the repository
+([`patou-bash/`](https://github.com/CM-exe/patou/tree/main/patou-bash),
+a `cargo build` workspace member alongside the main `patou` package)
 using [`assets/favicon.ico`](https://github.com/CM-exe/patou/blob/main/assets/favicon.ico)
-as its icon like any other installed app) that finds Git for Windows
-itself and opens an ordinary Git Bash session — with a Patou banner, the
-install directory already on `PATH` (so `patou` is available even if you
-haven't added it to `PATH` globally), and a grey/blue/light-blue mintty
-color theme in place of Git Bash's default yellow/green palette.
-Uninstalling removes the binary and the menu entry again.
+as its icon like any other installed app. It opens an ordinary Git Bash
+session — with a Patou banner, the install directory already on `PATH`
+(so `patou` is available even if you haven't added it to `PATH`
+globally), and a grey/blue/light-blue mintty color theme in place of Git
+Bash's default yellow/green palette. Uninstalling removes the binary,
+the bundled Git for Windows copy, and the menu entry again.
 
-Finding Git for Windows itself is best-effort across several strategies
-(the registry key the official installer writes, common install
-directories, `git --exec-path`/`where git.exe` for anything else with
-`git` on `PATH`) since not every way of installing Git for Windows
-(winget, scoop, a portable zip, ...) sets the same markers.
+It's self-contained rather than depending on a system-wide Git for
+Windows install: `install.ps1`/`install.cmd` download Git for Windows'
+official "PortableGit" distribution once (see `PATOU_GIT_TAG` /
+`PATOU_GIT_ASSET` in each script to pin a different release) and extract
+it into a private `git\` folder next to `patou-bash.exe`, which is what
+it actually uses. If that's ever missing (a broken install, or
+`patou-bash.exe` run from somewhere else entirely), it falls back to
+looking for a system-wide install instead of doing nothing — the
+registry key the official installer writes, common install directories,
+then `git --exec-path`/`where git.exe` for anything else with `git` on
+`PATH`.
 
 ## From source
 

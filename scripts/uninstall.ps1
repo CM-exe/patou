@@ -37,3 +37,12 @@ foreach ($name in 'patou-bash.exe', 'patou-shell.sh', 'patou-bash.minttyrc', 'pa
         Write-Host "Removed $path"
     }
 }
+
+# The bundled Git for Windows copy scripts/install.ps1 extracted for
+# patou-bash.exe (~60 MB - the main reason to clean this up specifically
+# rather than leaving it behind).
+$gitDir = Join-Path $installDir 'git'
+if (Test-Path $gitDir) {
+    Remove-Item -Recurse -Force $gitDir
+    Write-Host "Removed $gitDir"
+}
