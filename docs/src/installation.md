@@ -41,10 +41,9 @@ rather read them first or download and run them locally.
 
 On Windows, `install.ps1`/`install.cmd` also install `patou-bash.exe` and
 add an **Open Patou bash here** entry to the folder right-click menu.
-This adds a one-time, fairly large (~150–300 MB, downloaded from
-[MSYS2](https://www.msys2.org/)'s own package mirrors) setup step on top
-of the plain `patou.exe` install and can take a few minutes; set
-`PATOU_SKIP_BASH_HERE` to skip it and install just `patou.exe`.
+This adds a one-time, fairly large (~150–300 MB) download on top of the
+plain `patou.exe` install; set `PATOU_SKIP_BASH_HERE` to skip it and
+install just `patou.exe`.
 
 `patou-bash.exe` is a small native launcher, built from its own package
 in the repository
@@ -55,20 +54,25 @@ as its icon like any other installed app. Uninstalling removes the
 binary, the bundled MSYS2 install, and the menu entry again.
 
 It's self-contained rather than depending on a system-wide Git for
-Windows install: `install.ps1`/`install.cmd` download and bootstrap a
-standalone [MSYS2](https://www.msys2.org/) environment (not Git for
-Windows' own bundled copy) into a private `msys64\` folder next to
-`patou-bash.exe`, then install `git` into it with `pacman` — the
-bootstrap follows the same sequence the official
+Windows install: `install.ps1`/`install.cmd` download a prebuilt
+[MSYS2](https://www.msys2.org/) + `git` bundle (not Git for Windows' own
+copy) into a private `msys64\` folder next to `patou-bash.exe`. That
+bundle is built in CI by
+[`.github/workflows/msys2-bundle.yml`](https://github.com/CM-exe/patou/blob/main/.github/workflows/msys2-bundle.yml) —
+extracting the MSYS2 base archive and `pacman`-installing `git` into it
+once there (following the same sequence the official
 [`msys2/setup-msys2`](https://github.com/msys2/setup-msys2) GitHub
-Action uses (a first bash run, a two-pass `pacman -Syuu` with a
+Action uses: a first bash run, a two-pass `pacman -Syuu` with a
 `taskkill` in between to clear a lingering lock on `msys-2.0.dll`, then
-`pacman -S git`). See `PATOU_MSYS2_ASSET_URL` in each script to point at
-a different MSYS2 base archive — MSYS2 only keeps the latest nightly
-build, so there's no older release to pin to by default. This is the one
-place these install scripts use PowerShell as an implementation detail
-(even `install.cmd` shells out to a small generated `.ps1` for just this
-step) — installing `patou.exe` itself never needs it.
+`pacman -S git`) — and published to this repo's rolling `msys2-bundle`
+release, decoupled from patou's own version tags since it doesn't track
+patou's release cadence. The install scripts just download and extract
+that one finished archive — no `pacman`, no bootstrap, on the machine
+being installed to. See `PATOU_MSYS2_BUNDLE_URL` in each script to point
+at a different bundle. This keeps both install scripts free of a
+PowerShell dependency for this step too (`install.cmd` needed a
+generated `.ps1` for the bootstrap when it ran locally; a plain
+download+extract doesn't).
 
 From that bundled install, patou-bash.exe launches its `mintty.exe`
 directly, using the same invocation Git for Windows' own `git-bash.exe`

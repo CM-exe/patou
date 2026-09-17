@@ -1,9 +1,7 @@
 @echo off
 :: Installs the patou CLI by downloading a prebuilt binary from GitHub
 :: Releases, using curl and tar (built into Windows 10 1803+ / Windows 11).
-:: No Rust toolchain, no PowerShell required to run this script itself
-:: (though setting up the optional bundled MSYS2 below does use
-:: PowerShell as an implementation detail - see :install_bundled_msys2).
+:: No Rust toolchain, no PowerShell required.
 ::
 :: Usage:
 ::   curl -fsSL https://raw.githubusercontent.com/CM-exe/patou/main/scripts/install.cmd -o install.cmd && install.cmd
@@ -13,14 +11,12 @@
 ::   PATOU_INSTALL_DIR  directory to install the binary into
 ::                      (default: %LOCALAPPDATA%\Patou\bin)
 ::   PATOU_SKIP_BASH_HERE  set to skip patou-bash.exe and the bundled
-::                         MSYS2 install (~150-300 MB, downloaded from
-::                         MSYS2's own package mirrors) entirely - only
-::                         patou.exe gets installed
-::   PATOU_MSYS2_ASSET_URL  MSYS2 base sfx archive to bundle (default:
-::                          the latest from msys2/msys2-installer -
-::                          MSYS2 only keeps the latest nightly base
-::                          archive, so there isn't an older release to
-::                          pin to)
+::                         MSYS2 + git download (~150-300 MB) entirely -
+::                         only patou.exe gets installed
+::   PATOU_MSYS2_BUNDLE_URL  MSYS2 + git bundle to download (default: the
+::                           current asset from this repo's rolling
+::                           `msys2-bundle` release, built by
+::                           .github/workflows/msys2-bundle.yml)
 
 setlocal
 
@@ -80,63 +76,52 @@ exit /b 0
 :: patou-bash.exe (built from patou-bash/src/main.rs) is a self-contained
 :: "Open Patou bash here" launcher: it doesn't depend on a system-wide
 :: Git for Windows install, because this gives it its own private copy -
-:: a standalone MSYS2 install (https://www.msys2.org/), extracted and
-:: bootstrapped into a `msys64\` folder right next to patou-bash.exe,
-:: with `git` installed into it via `pacman`. See scripts/uninstall.cmd
-:: to remove what this adds.
+:: a standalone MSYS2 install (https://www.msys2.org/) with `git` already
+:: installed into it via `pacman`, extracted into a `msys64\` folder
+:: right next to patou-bash.exe. See scripts/uninstall.cmd to remove what
+:: this adds.
 ::
-:: The bootstrap itself (first bash run, a two-pass `pacman -Syuu` with
-:: a `taskkill` in between, then installing `git`) needs more branching
-:: logic than plain batch handles comfortably, so it's done by a small
-:: generated PowerShell script instead - the one place these install
-:: scripts use PowerShell as an implementation detail; the overall
-:: install still needs no PowerShell to run install.cmd itself.
+:: This is a single prebuilt archive, not a fresh MSYS2 setup on this
+:: machine: the pacman-based bootstrap (extract, bootstrap, install git)
+:: runs once in CI (.github/workflows/msys2-bundle.yml) rather than on
+:: every install - here, it's just a download and an extract.
 :install_bundled_msys2
 setlocal
 
 set "msys_dir=%install_dir%\msys64"
-if exist "%msys_dir%\usr\bin\bash.exe" if exist "%msys_dir%\usr\bin\git.exe" (
+if exist "%msys_dir%\usr\bin\git.exe" (
   endlocal
   goto :eof
 )
 
-set "ps1_file=%TEMP%\patou-msys2-bootstrap-%RANDOM%.ps1"
+if "%PATOU_MSYS2_BUNDLE_URL%"=="" (
+  set "bundle_url=https://github.com/CM-exe/patou/releases/download/msys2-bundle/patou-msys2-x86_64.zip"
+) else (
+  set "bundle_url=%PATOU_MSYS2_BUNDLE_URL%"
+)
+set "bundle_tmp=%TEMP%\patou-msys2-bundle-%RANDOM%.zip"
 
-echo $ErrorActionPreference = 'Stop'>"%ps1_file%"
-echo $installDir = $env:install_dir>>"%ps1_file%"
-echo $msysDir = Join-Path $installDir 'msys64'>>"%ps1_file%"
-echo $bashPath = Join-Path $msysDir 'usr\bin\bash.exe'>>"%ps1_file%"
-echo $gitPath = Join-Path $msysDir 'usr\bin\git.exe'>>"%ps1_file%"
-echo if ((Test-Path $bashPath) -and (Test-Path $gitPath)) { exit 0 }>>"%ps1_file%"
-echo $msys2Url = if ($env:PATOU_MSYS2_ASSET_URL) { $env:PATOU_MSYS2_ASSET_URL } else { 'https://github.com/msys2/msys2-installer/releases/download/nightly-x86_64/msys2-base-x86_64-latest.sfx.exe' }>>"%ps1_file%"
-echo $tmpFile = Join-Path $env:TEMP ([System.Guid]::NewGuid().ToString() + '.sfx.exe')>>"%ps1_file%"
-echo try {>>"%ps1_file%"
-echo   if (-not (Test-Path $bashPath)) {>>"%ps1_file%"
-echo Write-Host "Downloading $msys2Url (bundled MSYS2 base, ~45 MB, one-time)">>"%ps1_file%"
-echo     Invoke-WebRequest -Uri $msys2Url -OutFile $tmpFile>>"%ps1_file%"
-echo     ^& $tmpFile -y "-o$installDir" ^| Out-Null>>"%ps1_file%"
-echo     if ($LASTEXITCODE -ne 0 -or -not (Test-Path $bashPath)) { throw "extraction did not produce $bashPath" }>>"%ps1_file%"
-echo   }>>"%ps1_file%"
-echo   Write-Host "Bootstrapping bundled MSYS2 (this can take a few minutes)...">>"%ps1_file%"
-echo   ^& $bashPath '-lc' 'uname -a' ^| Out-Null>>"%ps1_file%"
-echo   ^& $bashPath '-lc' "sed -i 's/^^CheckSpace/#CheckSpace/g' /etc/pacman.conf" ^| Out-Null>>"%ps1_file%"
-echo   ^& $bashPath '-lc' "pacman -Syuu --noconfirm --overwrite '*'" 2^>^&1 ^| Out-Null>>"%ps1_file%"
-echo   ^& taskkill /F /FI "MODULES eq msys-2.0.dll" 2^>^&1 ^| Out-Null>>"%ps1_file%"
-echo   ^& $bashPath '-lc' "pacman -Syuu --noconfirm --overwrite '*'" ^| Out-Null>>"%ps1_file%"
-echo   Write-Host "Installing git into the bundled MSYS2...">>"%ps1_file%"
-echo   ^& $bashPath '-lc' "pacman -S --needed --noconfirm --overwrite '*' git" ^| Out-Null>>"%ps1_file%"
-echo   if (-not (Test-Path $gitPath)) { throw "pacman did not install $gitPath" }>>"%ps1_file%"
-echo   Write-Host "Installed bundled MSYS2 + git to $msysDir">>"%ps1_file%"
-echo } catch {>>"%ps1_file%"
-echo   Write-Host "note: could not set up bundled MSYS2 ($($_.Exception.Message)) - 'Open Patou bash here' will fall back to a system-wide Git for Windows install if one is found, or do nothing otherwise">>"%ps1_file%"
-echo   Remove-Item -Recurse -Force $msysDir -ErrorAction SilentlyContinue>>"%ps1_file%"
-echo } finally {>>"%ps1_file%"
-echo   Remove-Item -Force $tmpFile -ErrorAction SilentlyContinue>>"%ps1_file%"
-echo }>>"%ps1_file%"
+echo Downloading %bundle_url% (bundled MSYS2 + git, prebuilt, one-time)
+curl -fsSL "%bundle_url%" -o "%bundle_tmp%"
+if errorlevel 1 (
+  echo note: could not download the bundled MSYS2 + git - 'Open Patou bash here' will fall back to a system-wide Git for Windows install if one is found, or do nothing otherwise
+  del /f /q "%bundle_tmp%" >nul 2>&1
+  endlocal
+  goto :eof
+)
 
-echo Setting up bundled MSYS2 (this can take a few minutes)...
-powershell -NoProfile -ExecutionPolicy Bypass -File "%ps1_file%"
-del /f /q "%ps1_file%" >nul 2>&1
+if not exist "%install_dir%" mkdir "%install_dir%"
+tar -xf "%bundle_tmp%" -C "%install_dir%"
+del /f /q "%bundle_tmp%" >nul 2>&1
+
+if not exist "%msys_dir%\usr\bin\git.exe" (
+  echo note: extracting the bundled MSYS2 + git failed - 'Open Patou bash here' will fall back to a system-wide Git for Windows install if one is found, or do nothing otherwise
+  rmdir /s /q "%msys_dir%" >nul 2>&1
+  endlocal
+  goto :eof
+)
+
+echo Installed bundled MSYS2 + git to %msys_dir%
 
 endlocal
 goto :eof

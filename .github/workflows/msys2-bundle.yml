@@ -1,0 +1,101 @@
+name: MSYS2 bundle
+
+# Builds the "Open Patou bash here" MSYS2 + git bundle that
+# patou-bash.exe uses, and publishes it to a rolling `msys2-bundle`
+# release. This runs the pacman-based setup (extract the MSYS2 base
+# archive, bootstrap it, install git) *once, in CI*, rather than on
+# every end user's machine at install time - scripts/install.ps1 and
+# scripts/install.cmd just download the finished archive this produces.
+#
+# Decoupled from the main Release workflow (release.yml): this bundle
+# doesn't track patou's own version, and rebuilding/re-uploading ~150+ MB
+# on every patou patch release would be wasteful. Run it manually
+# whenever a refreshed bundle is wanted, or let the weekly schedule keep
+# it reasonably current.
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 3 * * 1" # weekly, Monday 03:00 UTC
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Download MSYS2 base
+        shell: pwsh
+        run: |
+          $url = 'https://github.com/msys2/msys2-installer/releases/download/nightly-x86_64/msys2-base-x86_64-latest.sfx.exe'
+          Write-Host "Downloading $url"
+          Invoke-WebRequest -Uri $url -OutFile msys2-base.sfx.exe
+          # Self-extracting 7-Zip archive containing a top-level msys64\
+          # folder: -y accepts the license/skips prompts, -oC:\ (no
+          # space) sets the destination's parent directory.
+          .\msys2-base.sfx.exe -y "-oC:\"
+
+      - name: Bootstrap MSYS2 and install git
+        shell: pwsh
+        run: |
+          # Mirrors the sequence the official github.com/msys2/setup-msys2
+          # action uses: the base archive's own runtime is stale relative
+          # to MSYS2's live package repos, and the first update pass
+          # commonly can't finish because it needs to replace
+          # usr\bin\msys-2.0.dll itself while a pacman-spawned signature
+          # verification helper still has it open - the taskkill clears
+          # that before the second pass, which then completes.
+          $bash = 'C:\msys64\usr\bin\bash.exe'
+
+          & $bash '-lc' 'uname -a'
+          & $bash '-lc' "sed -i 's/^CheckSpace/#CheckSpace/g' /etc/pacman.conf"
+          & $bash '-lc' "pacman -Syuu --noconfirm --overwrite '*'" 2>&1 | Out-Null
+          taskkill /F /FI "MODULES eq msys-2.0.dll" 2>&1 | Out-Null
+          & $bash '-lc' "pacman -Syuu --noconfirm --overwrite '*'"
+
+          & $bash '-lc' "pacman -S --needed --noconfirm --overwrite '*' git"
+          if (-not (Test-Path 'C:\msys64\usr\bin\git.exe')) {
+            throw 'pacman did not install git'
+          }
+
+          # Drop pacman's downloaded package cache - not needed at
+          # runtime, and it's a meaningful chunk of the archive size.
+          & $bash '-lc' 'pacman -Scc --noconfirm'
+
+      - name: Package
+        shell: pwsh
+        run: |
+          $sevenZip = "$env:ProgramFiles\7-Zip\7z.exe"
+          & $sevenZip a -tzip patou-msys2-x86_64.zip C:\msys64
+          if ($LASTEXITCODE -ne 0) { throw "7z exited with code $LASTEXITCODE" }
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: patou-msys2-x86_64
+          path: patou-msys2-x86_64.zip
+          if-no-files-found: error
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: patou-msys2-x86_64
+
+      - name: Publish to the rolling msys2-bundle release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if ! gh release view msys2-bundle >/dev/null 2>&1; then
+            gh release create msys2-bundle \
+              --title "Bundled MSYS2 + git (for Open Patou bash here)" \
+              --notes "Auto-built by .github/workflows/msys2-bundle.yml. Not tied to patou's own version - scripts/install.ps1 and scripts/install.cmd always fetch this release's current asset."
+          fi
+          gh release upload msys2-bundle patou-msys2-x86_64.zip --clobber

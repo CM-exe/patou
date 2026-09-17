@@ -9,80 +9,57 @@
 #   PATOU_INSTALL_DIR  directory to install the binary into
 #                      (default: $env:LOCALAPPDATA\Patou\bin)
 #   PATOU_SKIP_BASH_HERE  set to skip patou-bash.exe and the bundled
-#                         MSYS2 install (~150-300 MB, downloaded from
-#                         MSYS2's own package mirrors) entirely - only
-#                         patou.exe gets installed
-#   PATOU_MSYS2_ASSET_URL  MSYS2 base sfx archive to bundle (default: the
-#                          latest from msys2/msys2-installer - MSYS2 only
-#                          keeps the latest nightly base archive, so
-#                          there isn't an older release to pin to)
+#                         MSYS2 + git download (~150-300 MB) entirely -
+#                         only patou.exe gets installed
+#   PATOU_MSYS2_BUNDLE_URL  MSYS2 + git bundle to download (default: the
+#                           current asset from this repo's rolling
+#                           `msys2-bundle` release, built by
+#                           .github/workflows/msys2-bundle.yml)
 
 $ErrorActionPreference = 'Stop'
 
 # patou-bash.exe (built from patou-bash/src/main.rs) is a self-contained
 # "Open Patou bash here" launcher: it doesn't depend on a system-wide Git
 # for Windows install, because this function gives it its own private
-# copy - a standalone MSYS2 install (https://www.msys2.org/), extracted
-# and bootstrapped into a `msys64\` folder right next to patou-bash.exe,
-# with `git` installed into it via `pacman`. See scripts/uninstall.ps1 to
+# copy - a standalone MSYS2 install (https://www.msys2.org/) with `git`
+# already installed into it via `pacman`, extracted into a `msys64\`
+# folder right next to patou-bash.exe. See scripts/uninstall.ps1 to
 # remove what this adds.
 #
-# The bootstrap (first bash run, then a two-pass `pacman -Syuu` with a
-# `taskkill` in between) mirrors the sequence the official
-# github.com/msys2/setup-msys2 GitHub Action uses: the base archive's
-# own runtime is stale relative to MSYS2's live package repos, and the
-# first update pass commonly can't finish because it needs to replace
-# usr\bin\msys-2.0.dll itself while some helper process (spawned by
-# pacman for package signature verification) still has it open - the
-# taskkill clears that before the second pass, which then completes.
+# This is a single prebuilt archive, not a fresh MSYS2 setup on this
+# machine: the pacman-based bootstrap (extract, bootstrap, install git)
+# runs once in CI (.github/workflows/msys2-bundle.yml) rather than on
+# every install - here, it's just a download and an extract.
 function Install-BundledMsys2 {
     param([string]$InstallDir)
 
     $msysDir = Join-Path $InstallDir 'msys64'
-    $bashPath = Join-Path $msysDir 'usr\bin\bash.exe'
     $gitPath = Join-Path $msysDir 'usr\bin\git.exe'
-    if ((Test-Path $bashPath) -and (Test-Path $gitPath)) {
+    if (Test-Path $gitPath) {
         return
     }
 
-    $msys2Url = if ($env:PATOU_MSYS2_ASSET_URL) {
-        $env:PATOU_MSYS2_ASSET_URL
+    $bundleUrl = if ($env:PATOU_MSYS2_BUNDLE_URL) {
+        $env:PATOU_MSYS2_BUNDLE_URL
     } else {
-        'https://github.com/msys2/msys2-installer/releases/download/nightly-x86_64/msys2-base-x86_64-latest.sfx.exe'
+        'https://github.com/CM-exe/patou/releases/download/msys2-bundle/patou-msys2-x86_64.zip'
     }
 
-    $tmpFile = Join-Path $env:TEMP ([System.Guid]::NewGuid().ToString() + '.sfx.exe')
+    $tmpFile = Join-Path $env:TEMP ([System.Guid]::NewGuid().ToString() + '.zip')
     try {
-        if (-not (Test-Path $bashPath)) {
-            Write-Host "Downloading $msys2Url (bundled MSYS2 base, ~45 MB, one-time)"
-            Invoke-WebRequest -Uri $msys2Url -OutFile $tmpFile
+        Write-Host "Downloading $bundleUrl (bundled MSYS2 + git, prebuilt, one-time)"
+        Invoke-WebRequest -Uri $bundleUrl -OutFile $tmpFile
 
-            # The download is a self-extracting 7-Zip archive containing
-            # a top-level msys64\ folder: -y accepts the license/skips
-            # prompts, -o<dir> (no space) sets the *parent* directory.
-            & $tmpFile -y "-o$InstallDir" | Out-Null
-            if ($LASTEXITCODE -ne 0 -or -not (Test-Path $bashPath)) {
-                throw "extraction did not produce $bashPath (exit code $LASTEXITCODE)"
-            }
+        New-Item -ItemType Directory -Force -Path $InstallDir | Out-Null
+        # tar (built into Windows 10 1803+/11) handles long MSYS2 paths
+        # more reliably than Expand-Archive.
+        tar -xf $tmpFile -C $InstallDir
+        if ($LASTEXITCODE -ne 0 -or -not (Test-Path $gitPath)) {
+            throw "extraction did not produce $gitPath (exit code $LASTEXITCODE)"
         }
-
-        Write-Host "Bootstrapping bundled MSYS2 (this can take a few minutes)..."
-        & $bashPath '-lc' 'uname -a' | Out-Null
-
-        & $bashPath '-lc' "sed -i 's/^CheckSpace/#CheckSpace/g' /etc/pacman.conf" | Out-Null
-        & $bashPath '-lc' "pacman -Syuu --noconfirm --overwrite '*'" 2>&1 | Out-Null
-        & taskkill /F /FI "MODULES eq msys-2.0.dll" 2>&1 | Out-Null
-        & $bashPath '-lc' "pacman -Syuu --noconfirm --overwrite '*'" | Out-Null
-
-        Write-Host "Installing git into the bundled MSYS2..."
-        & $bashPath '-lc' "pacman -S --needed --noconfirm --overwrite '*' git" | Out-Null
-        if (-not (Test-Path $gitPath)) {
-            throw "pacman did not install $gitPath"
-        }
-
         Write-Host "Installed bundled MSYS2 + git to $msysDir"
     } catch {
-        Write-Host "note: could not set up bundled MSYS2 ($($_.Exception.Message)) - 'Open Patou bash here' will fall back to a system-wide Git for Windows install if one is found, or do nothing otherwise"
+        Write-Host "note: could not install the bundled MSYS2 + git ($($_.Exception.Message)) - 'Open Patou bash here' will fall back to a system-wide Git for Windows install if one is found, or do nothing otherwise"
         Remove-Item -Recurse -Force $msysDir -ErrorAction SilentlyContinue
     } finally {
         Remove-Item -Force $tmpFile -ErrorAction SilentlyContinue
