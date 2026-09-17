@@ -45,13 +45,23 @@ jobs:
     if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     runs-on: windows-latest
     steps:
-      - name: Set up MSYS2 and install git
+      - name: Set up MSYS2
         id: msys2
         uses: msys2/setup-msys2@v2
         with:
           msystem: MSYS
           update: true
-          install: git
+
+      - name: Install git (retrying on transient mirror errors)
+        shell: msys2 {0}
+        run: |
+          for i in 1 2 3 4 5; do
+            pacman -S --needed --noconfirm git && exit 0
+            echo "pacman failed (attempt $i/5) - mirror.msys2.org can be flaky; retrying in 15s..."
+            sleep 15
+          done
+          echo "pacman still failing after 5 attempts" >&2
+          exit 1
 
       - name: Drop pacman's package cache
         shell: msys2 {0}

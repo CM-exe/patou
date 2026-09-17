@@ -17,6 +17,13 @@
 #                           .github/workflows/msys2-bundle.yml)
 
 $ErrorActionPreference = 'Stop'
+# Invoke-WebRequest shows a download progress bar by default, but only
+# when $ProgressPreference is 'Continue' - some hosts (certain CI
+# runners, some non-interactive contexts) default it to
+# 'SilentlyContinue' instead, which would silently drop it. Setting it
+# explicitly guarantees a progress bar for every download below,
+# regardless of what the calling context set beforehand.
+$ProgressPreference = 'Continue'
 
 # patou-bash.exe (built from patou-bash/src/main.rs) is a self-contained
 # "Open Patou bash here" launcher: it doesn't depend on a system-wide Git
@@ -72,19 +79,25 @@ function Install-BundledMsys2 {
 }
 
 # Wires up an "Open Patou bash here" folder context menu entry that runs
-# patou-bash.exe.
+# patou-bash.exe. Also sets the "Icon" value on each verb key (separate
+# from the icon of the mintty window it opens - see patou-bash/src/main.rs
+# - this is what Explorer shows next to the entry in the right-click menu
+# itself) using patou-bash.exe's own icon (index 0, from build.rs).
 function Add-PatouBashHere {
     param([string]$InstallDir)
 
     $exePath = Join-Path $InstallDir 'patou-bash.exe'
     $commandBase = '"' + $exePath + '"'
+    $iconValue = "$exePath,0"
 
     New-Item -Path 'HKCU:\Software\Classes\Directory\Background\shell\PatouBashHere\command' -Force | Out-Null
     Set-Item -Path 'HKCU:\Software\Classes\Directory\Background\shell\PatouBashHere' -Value 'Open Patou bash here'
+    New-ItemProperty -Path 'HKCU:\Software\Classes\Directory\Background\shell\PatouBashHere' -Name 'Icon' -Value $iconValue -PropertyType String -Force | Out-Null
     Set-Item -Path 'HKCU:\Software\Classes\Directory\Background\shell\PatouBashHere\command' -Value ($commandBase + ' "%V"')
 
     New-Item -Path 'HKCU:\Software\Classes\Directory\shell\PatouBashHere\command' -Force | Out-Null
     Set-Item -Path 'HKCU:\Software\Classes\Directory\shell\PatouBashHere' -Value 'Open Patou bash here'
+    New-ItemProperty -Path 'HKCU:\Software\Classes\Directory\shell\PatouBashHere' -Name 'Icon' -Value $iconValue -PropertyType String -Force | Out-Null
     Set-Item -Path 'HKCU:\Software\Classes\Directory\shell\PatouBashHere\command' -Value ($commandBase + ' "%1"')
 
     Write-Host "Added 'Open Patou bash here' to the folder right-click menu"

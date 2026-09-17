@@ -37,7 +37,9 @@ set "tmp_dir=%TEMP%\patou-install-%RANDOM%"
 mkdir "%tmp_dir%" >nul 2>&1
 
 echo Downloading %url%
-curl -fsSL "%url%" -o "%tmp_dir%\%asset%"
+:: -fL (fail on HTTP errors, follow redirects) rather than -fsSL: dropping
+:: -s (silent) lets curl show its default progress meter.
+curl -fL "%url%" -o "%tmp_dir%\%asset%"
 if errorlevel 1 (
   echo error: no prebuilt binary for %target% - see https://github.com/%repo% for other install options 1>&2
   rmdir /s /q "%tmp_dir%"
@@ -109,8 +111,10 @@ if not "%PATOU_MSYS2_BUNDLE_URL%"=="" (
 )
 set "bundle_tmp=%TEMP%\patou-msys2-bundle-%RANDOM%.zip"
 
-echo Downloading %bundle_url% (bundled MSYS2 + git, prebuilt, one-time)
-curl -fsSL "%bundle_url%" -o "%bundle_tmp%"
+echo Downloading %bundle_url% (bundled MSYS2 + git, prebuilt, one-time - this is a large download, curl's progress meter below shows how it's going)
+:: -fL, not -fsSL: dropping -s (silent) lets curl show its default
+:: progress meter, worth having for a download this size.
+curl -fL "%bundle_url%" -o "%bundle_tmp%"
 if errorlevel 1 (
   echo note: could not download the bundled MSYS2 + git - 'Open Patou bash here' will fall back to a system-wide Git for Windows install if one is found, or do nothing otherwise
   del /f /q "%bundle_tmp%" >nul 2>&1
@@ -135,7 +139,11 @@ endlocal
 goto :eof
 
 :: Wires up an "Open Patou bash here" folder context menu entry that
-:: runs patou-bash.exe.
+:: runs patou-bash.exe. Also sets the "Icon" value on each verb key
+:: (separate from the icon of the mintty window it opens - see
+:: patou-bash/src/main.rs - this is what Explorer shows next to the
+:: entry in the right-click menu itself) using patou-bash.exe's own icon
+:: (index 0, from build.rs).
 :add_patou_bash_here
 setlocal
 
@@ -149,12 +157,14 @@ echo Windows Registry Editor Version 5.00>"%reg_file%"
 echo.>>"%reg_file%"
 echo [HKEY_CURRENT_USER\Software\Classes\Directory\Background\shell\PatouBashHere]>>"%reg_file%"
 echo @="Open Patou bash here">>"%reg_file%"
+echo "Icon"="%exe_path_reg%,0">>"%reg_file%"
 echo.>>"%reg_file%"
 echo [HKEY_CURRENT_USER\Software\Classes\Directory\Background\shell\PatouBashHere\command]>>"%reg_file%"
 echo @="\"%exe_path_reg%\" \"%%V\"">>"%reg_file%"
 echo.>>"%reg_file%"
 echo [HKEY_CURRENT_USER\Software\Classes\Directory\shell\PatouBashHere]>>"%reg_file%"
 echo @="Open Patou bash here">>"%reg_file%"
+echo "Icon"="%exe_path_reg%,0">>"%reg_file%"
 echo.>>"%reg_file%"
 echo [HKEY_CURRENT_USER\Software\Classes\Directory\shell\PatouBashHere\command]>>"%reg_file%"
 echo @="\"%exe_path_reg%\" \"%%1\"">>"%reg_file%"
