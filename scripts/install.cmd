@@ -46,6 +46,7 @@ if errorlevel 1 (
 
 if not exist "%install_dir%" mkdir "%install_dir%"
 move /y "%tmp_dir%\patou.exe" "%install_dir%\patou.exe" >nul
+move /y "%tmp_dir%\patou-bash.exe" "%install_dir%\patou-bash.exe" >nul
 
 rmdir /s /q "%tmp_dir%"
 
@@ -57,4 +58,54 @@ if errorlevel 1 (
   echo   setx PATH "%%PATH%%;%install_dir%"
 )
 
+call :add_patou_bash_here
+
 endlocal
+exit /b 0
+
+:: Best-effort: wires up an "Open Patou bash here" folder context menu
+:: entry that runs patou-bash.exe (built from src/bin/patou-bash.rs). That
+:: binary finds Git for Windows and opens a themed Git Bash session itself
+:: - this just points the menu at it. See scripts/uninstall.cmd to remove
+:: what this adds.
+:add_patou_bash_here
+setlocal
+
+set "exe_path=%install_dir%\patou-bash.exe"
+set "reg_file=%TEMP%\patou-bash-here-%RANDOM%.reg"
+
+echo Windows Registry Editor Version 5.00>"%reg_file%"
+echo.>>"%reg_file%"
+echo [HKEY_CURRENT_USER\Software\Classes\Directory\Background\shell\PatouBashHere]>>"%reg_file%"
+echo @="Open Patou bash here">>"%reg_file%"
+echo.>>"%reg_file%"
+echo [HKEY_CURRENT_USER\Software\Classes\Directory\Background\shell\PatouBashHere\command]>>"%reg_file%"
+echo @="\"%exe_path%\" \"%%V\"">>"%reg_file%"
+echo.>>"%reg_file%"
+echo [HKEY_CURRENT_USER\Software\Classes\Directory\shell\PatouBashHere]>>"%reg_file%"
+echo @="Open Patou bash here">>"%reg_file%"
+echo.>>"%reg_file%"
+echo [HKEY_CURRENT_USER\Software\Classes\Directory\shell\PatouBashHere\command]>>"%reg_file%"
+echo @="\"%exe_path%\" \"%%1\"">>"%reg_file%"
+
+reg import "%reg_file%" >nul 2>&1
+if errorlevel 1 (
+  echo note: failed to register the 'Open Patou bash here' context menu
+  del /f /q "%reg_file%" >nul 2>&1
+  endlocal
+  goto :eof
+)
+del /f /q "%reg_file%" >nul 2>&1
+echo Added 'Open Patou bash here' to the folder right-click menu
+
+set "git_found="
+reg query "HKCU\SOFTWARE\GitForWindows" >nul 2>&1 && set "git_found=1"
+if not defined git_found (
+  reg query "HKLM\SOFTWARE\GitForWindows" >nul 2>&1 && set "git_found=1"
+)
+if not defined git_found (
+  echo note: Git for Windows wasn't found - the menu entry will do nothing until it's installed
+)
+
+endlocal
+goto :eof

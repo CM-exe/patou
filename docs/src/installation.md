@@ -37,6 +37,22 @@ scripts are plain, short, and versioned in the repository under
 [`scripts/`](https://github.com/CM-exe/patou/tree/main/scripts) if you'd
 rather read them first or download and run them locally.
 
+### "Open Patou bash here" (Windows)
+
+On Windows, `install.ps1`/`install.cmd` also install `patou-bash.exe` and
+add an **Open Patou bash here** entry to the folder right-click menu,
+best-effort — nothing breaks if Git for Windows isn't installed yet, the
+menu entry just won't do anything until it is.
+
+`patou-bash.exe` is a small native launcher (built from
+[`src/bin/patou-bash.rs`](https://github.com/CM-exe/patou/blob/main/src/bin/patou-bash.rs))
+that finds Git for Windows itself and opens an ordinary Git Bash session
+— with a Patou banner, the install directory already on `PATH` (so
+`patou` is available even if you haven't added it to `PATH` globally),
+and a grey/blue/light-blue mintty color theme in place of Git Bash's
+default yellow/green palette. Uninstalling removes the binary and the
+menu entry again.
+
 ## From source
 
 ```bash
@@ -84,8 +100,10 @@ irm https://raw.githubusercontent.com/CM-exe/patou/main/scripts/uninstall.ps1 | 
 curl -fsSL https://raw.githubusercontent.com/CM-exe/patou/main/scripts/uninstall.cmd -o uninstall.cmd && uninstall.cmd
 ```
 
-Each just removes the `patou` binary from its install directory — set
-`PATOU_INSTALL_DIR` if you installed to a non-default location.
+Each removes the `patou` binary from its install directory — set
+`PATOU_INSTALL_DIR` if you installed to a non-default location — and, on
+Windows, also removes the "Open Patou bash here" context menu entry if
+`install.ps1`/`install.cmd` added one.
 
 **Installed with `cargo install --path .`:**
 

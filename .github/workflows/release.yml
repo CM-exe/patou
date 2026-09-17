@@ -54,7 +54,7 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          Compress-Archive -Path target/${{ matrix.target }}/release/patou.exe -DestinationPath patou-${{ matrix.target }}.zip
+          Compress-Archive -Path target/${{ matrix.target }}/release/patou.exe,target/${{ matrix.target }}/release/patou-bash.exe -DestinationPath patou-${{ matrix.target }}.zip
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4

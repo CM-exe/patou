@@ -19,3 +19,21 @@ if (-not (Test-Path $binPath)) {
 
 Remove-Item -Force $binPath
 Write-Host "Removed $binPath"
+
+# Undo what scripts/install.ps1's Add-PatouBashHere added, if anything.
+foreach ($key in 'HKCU:\Software\Classes\Directory\Background\shell\PatouBashHere', 'HKCU:\Software\Classes\Directory\shell\PatouBashHere') {
+    if (Test-Path $key) {
+        Remove-Item -Recurse -Force $key
+        Write-Host "Removed $key"
+    }
+}
+
+# patou-bash.exe itself, and the helper files it writes next to itself
+# on each launch (patou-shell.sh, patou-bash.minttyrc).
+foreach ($name in 'patou-bash.exe', 'patou-shell.sh', 'patou-bash.minttyrc', 'patou-bash-error.log') {
+    $path = Join-Path $installDir $name
+    if (Test-Path $path) {
+        Remove-Item -Force $path
+        Write-Host "Removed $path"
+    }
+}

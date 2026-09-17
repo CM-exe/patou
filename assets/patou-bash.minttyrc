@@ -1,0 +1,27 @@
+# Mintty theme for "Open Patou bash here" - grey/blue/light-blue instead
+# of Git Bash's default yellow/green ANSI palette. See
+# https://mintty.github.io/mintty.1.html for the config file format.
+
+Font=Consolas
+FontHeight=10
+CursorType=block
+BackgroundColour=27,30,38
+ForegroundColour=200,211,224
+CursorColour=126,203,255
+
+Black=43,47,56
+BoldBlack=92,99,112
+Red=176,90,90
+BoldRed=214,110,110
+Green=74,127,181
+BoldGreen=126,203,255
+Yellow=138,151,168
+BoldYellow=159,216,255
+Blue=59,110,165
+BoldBlue=111,177,224
+Magenta=110,120,138
+BoldMagenta=154,165,181
+Cyan=95,179,217
+BoldCyan=143,212,240
+White=184,194,208
+BoldWhite=226,232,240
