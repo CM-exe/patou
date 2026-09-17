@@ -54,6 +54,34 @@ mod windows_only {
 
     const BANNER: &str = include_str!("../../assets/patou-bash-banner.txt");
 
+    // Overrides PS1 to show the current branch next to the path, like Git
+    // Bash's own default prompt (`__git_ps1`) - white for a plain repo,
+    // or light blue (matching assets/patou-bash.minttyrc's BoldCyan) when
+    // the repo also has a `.patou/` directory. `__patou_git_branch` is
+    // self-contained rather than depending on git-prompt.sh (which
+    // standalone MSYS2's `git` package, unlike Git for Windows, doesn't
+    // ship): it shells out to `git` directly and prints nothing outside a
+    // repo, so PS1 is unaffected when not in one.
+    const PROMPT_SCRIPT: &str = r#"# Patou bash prompt - sourced automatically by every login shell in
+# this bundled MSYS2 install via /etc/profile. Written by patou-bash.exe
+# on each launch; scripts/uninstall.ps1 and scripts/uninstall.cmd remove
+# the whole bundled msys64\ folder.
+
+__patou_git_branch() {
+    local branch
+    branch=$(git symbolic-ref --quiet --short HEAD 2>/dev/null) || branch=$(git rev-parse --short HEAD 2>/dev/null) || return
+    local toplevel
+    toplevel=$(git rev-parse --show-toplevel 2>/dev/null)
+    local color=37 # white
+    if [ -n "$toplevel" ] && [ -d "$toplevel/.patou" ]; then
+        color=36 # light blue - this repo also has .patou
+    fi
+    printf ' \033[1;%sm(%s)\033[0m' "$color" "$branch"
+}
+
+PS1='\[\033[32m\]\u@\h \[\033[35m\]\w\[\033[0m\]$(__patou_git_branch)\n\$ '
+"#;
+
     pub fn run() {
         if let Err(err) = try_run() {
             log_error(&err.to_string());
@@ -157,6 +185,7 @@ mod windows_only {
         let profile_d = git_root.join("etc").join("profile.d");
         fs::create_dir_all(&profile_d)?;
         fs::write(profile_d.join("patou-banner.sh"), banner_script(install_dir))?;
+        fs::write(profile_d.join("patou-prompt.sh"), PROMPT_SCRIPT)?;
 
         fs::write(
             git_root.join("etc").join("minttyrc"),

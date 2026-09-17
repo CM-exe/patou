@@ -96,7 +96,9 @@ mintty's `-i` accepts any executable with an icon resource, and
 `patou-bash.exe` is one, via `build.rs`), with the install directory
 already on `PATH` (so `patou` is available even if you haven't added it
 to `PATH` globally) and a grey/blue/light-blue mintty color theme in
-place of Git Bash's default yellow/green palette.
+place of Git Bash's default yellow/green palette. Inside a Git repo, the
+prompt also shows the current branch next to the path — white normally,
+or light blue if that repo has a `.patou/` directory too.
 
 If the bundled MSYS2 install is ever missing (setup failed, or
 `patou-bash.exe` run from somewhere else entirely), it falls back to
