@@ -34,6 +34,24 @@ for %%K in (
   )
 )
 
+:: What scripts/install.cmd's add_vscode_terminal_profile may have added.
+:: Only ever prints a note here (rather than editing settings.json in
+:: place): install.cmd itself only ever auto-creates that file when it
+:: didn't already exist, and has no JSON parser to safely remove just the
+:: "Patou Bash" entry from one that does, without risking the rest of the
+:: file's content.
+setlocal EnableDelayedExpansion
+for %%E in ("Code" "Code - Insiders") do (
+  set "settings_path=%APPDATA%\%%~E\User\settings.json"
+  if exist "!settings_path!" (
+    findstr /c:"Patou Bash" "!settings_path!" >nul 2>&1
+    if not errorlevel 1 (
+      echo note: !settings_path! has a 'Patou Bash' terminal profile - remove its entry from "terminal.integrated.profiles.windows" manually if you no longer want it
+    )
+  )
+)
+endlocal
+
 :: The "Patou Bash" Start Menu shortcut scripts/install.cmd's
 :: add_start_menu_shortcut added, if present.
 set "shortcut_path=%APPDATA%\Microsoft\Windows\Start Menu\Programs\Patou Bash.lnk"

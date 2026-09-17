@@ -15,6 +15,9 @@
 #                           patou-msys2-x86_64.zip asset on the same
 #                           release as patou.exe, built by
 #                           .github/workflows/msys2-bundle.yml)
+#   PATOU_SKIP_VSCODE_PROFILE  set to skip adding the "Patou Bash" VS Code
+#                              integrated-terminal profile (see
+#                              Add-VsCodeTerminalProfile)
 
 $ErrorActionPreference = 'Stop'
 # Invoke-WebRequest shows a download progress bar by default, but only
@@ -125,6 +128,102 @@ function Add-StartMenuShortcut {
     Write-Host "Added 'Patou Bash' to the Start Menu"
 }
 
+# "C:\Users\bob" -> "/c/Users/bob" - same conversion patou-bash.exe itself
+# applies to HOME (see to_posix_path in patou-bash/src/main.rs): bash
+# expects a POSIX-style HOME, not a native Windows path.
+function ConvertTo-PosixPath {
+    param([string]$Path)
+    $slashed = $Path -replace '\\', '/'
+    if ($slashed -match '^[A-Za-z]:') {
+        return '/' + $slashed.Substring(0, 1).ToLower() + $slashed.Substring(2)
+    }
+    return $slashed
+}
+
+# Adds a "Patou Bash" entry to `terminal.integrated.profiles.windows` in
+# every VS Code / VS Code Insiders user settings.json found under
+# %APPDATA%, so the bundled bash shows up as a selectable shell in VS
+# Code's integrated-terminal dropdown. This is deliberately separate from
+# the "Open Patou bash here" context menu entry (Add-PatouBashHere): that
+# one runs patou-bash.exe, which launches mintty as its own standalone
+# window (see patou-bash/src/main.rs) - a different thing from an
+# *integrated* terminal, where VS Code hosts the pty itself. So this
+# profile points straight at the bundled bash.exe rather than at
+# patou-bash.exe/mintty.
+#
+# CHERE_INVOKING=1 mirrors the same fix applied to the mintty-based
+# launcher's login shell (see launch_branded_mintty in
+# patou-bash/src/main.rs): without it, a `--login` bash unconditionally
+# `cd`s to $HOME on startup, discarding the working directory VS Code
+# actually opened the terminal in.
+#
+# Safe to run repeatedly: each settings.json is read-modified-written
+# through ConvertFrom-Json/ConvertTo-Json rather than text surgery, so
+# unrelated settings and any existing "terminal.integrated.profiles.windows"
+# entries survive untouched; a "Patou Bash" entry is replaced in place
+# rather than duplicated. Failures (e.g. a settings.json VS Code itself
+# would refuse to load) are reported per-edition rather than aborting the
+# rest of the install.
+function Add-VsCodeTerminalProfile {
+    param([string]$MsysDir)
+
+    $bashPath = Join-Path $MsysDir 'usr\bin\bash.exe'
+    if (-not (Test-Path $bashPath)) {
+        return
+    }
+
+    $homeDir = if ($env:USERPROFILE) { $env:USERPROFILE } else { "$env:HOMEDRIVE$env:HOMEPATH" }
+    $profileDef = [PSCustomObject]@{
+        path = $bashPath
+        args = @('--login', '-i')
+        icon = 'terminal-bash'
+        env  = [PSCustomObject]@{
+            CHERE_INVOKING = '1'
+            HOME           = ConvertTo-PosixPath $homeDir
+        }
+    }
+
+    foreach ($edition in 'Code', 'Code - Insiders') {
+        $userDir = Join-Path $env:APPDATA "$edition\User"
+        if (-not (Test-Path $userDir)) {
+            continue
+        }
+        $settingsPath = Join-Path $userDir 'settings.json'
+
+        try {
+            $settings = [PSCustomObject]@{}
+            if (Test-Path $settingsPath) {
+                $raw = Get-Content -Raw -Path $settingsPath
+                if ($raw -and $raw.Trim()) {
+                    $settings = $raw | ConvertFrom-Json
+                }
+            }
+            if ($settings -isnot [PSCustomObject]) {
+                throw "its top-level JSON value isn't an object"
+            }
+
+            if ($settings.PSObject.Properties.Name -notcontains 'terminal.integrated.profiles.windows') {
+                $settings | Add-Member -NotePropertyName 'terminal.integrated.profiles.windows' -NotePropertyValue ([PSCustomObject]@{})
+            }
+            $profiles = $settings.'terminal.integrated.profiles.windows'
+            if ($profiles -isnot [PSCustomObject]) {
+                throw "'terminal.integrated.profiles.windows' isn't a JSON object"
+            }
+
+            if ($profiles.PSObject.Properties.Name -contains 'Patou Bash') {
+                $profiles.'Patou Bash' = $profileDef
+            } else {
+                $profiles | Add-Member -NotePropertyName 'Patou Bash' -NotePropertyValue $profileDef
+            }
+
+            ($settings | ConvertTo-Json -Depth 100) | Set-Content -Path $settingsPath -Encoding utf8
+            Write-Host "Added a 'Patou Bash' terminal profile to $settingsPath"
+        } catch {
+            Write-Host "note: could not update $settingsPath ($($_.Exception.Message)) - add the 'Patou Bash' VS Code terminal profile manually if you'd like it"
+        }
+    }
+}
+
 $repo = 'CM-exe/patou'
 $version = if ($env:PATOU_VERSION) { $env:PATOU_VERSION } else { 'latest' }
 $installDir = if ($env:PATOU_INSTALL_DIR) { $env:PATOU_INSTALL_DIR } else { "$env:LOCALAPPDATA\Patou\bin" }
@@ -167,6 +266,9 @@ if (-not $env:PATOU_SKIP_BASH_HERE) {
         Install-BundledMsys2 -InstallDir $installDir -Repo $repo -Version $version
         Add-PatouBashHere -InstallDir $installDir
         Add-StartMenuShortcut -InstallDir $installDir
+        if (-not $env:PATOU_SKIP_VSCODE_PROFILE) {
+            Add-VsCodeTerminalProfile -MsysDir (Join-Path $installDir 'msys64')
+        }
     } catch {
         Write-Host "note: could not set up the 'Open Patou bash here' context menu ($($_.Exception.Message))"
     }

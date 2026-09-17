@@ -17,6 +17,9 @@
 ::                           patou-msys2-x86_64.zip asset on the same
 ::                           release as patou.exe, built by
 ::                           .github/workflows/msys2-bundle.yml)
+::   PATOU_SKIP_VSCODE_PROFILE  set to skip adding the "Patou Bash" VS Code
+::                              integrated-terminal profile (see
+::                              :add_vscode_terminal_profile)
 
 setlocal
 
@@ -71,6 +74,7 @@ if not defined PATOU_SKIP_BASH_HERE (
   call :install_bundled_msys2
   call :add_patou_bash_here
   call :add_start_menu_shortcut
+  if not defined PATOU_SKIP_VSCODE_PROFILE call :add_vscode_terminal_profile
 )
 
 endlocal
@@ -214,4 +218,92 @@ if exist "%shortcut_path%" (
 )
 
 endlocal
+goto :eof
+
+:: Adds a "Patou Bash" entry to `terminal.integrated.profiles.windows` in
+:: VS Code's (and VS Code Insiders') user settings.json, so the bundled
+:: bash shows up as a selectable shell in VS Code's integrated-terminal
+:: dropdown. Deliberately separate from add_patou_bash_here above: that
+:: one runs patou-bash.exe, which opens mintty as its own standalone
+:: window (see patou-bash/src/main.rs) - a different thing from an
+:: *integrated* terminal, where VS Code hosts the pty itself. So this
+:: points straight at the bundled bash.exe rather than at
+:: patou-bash.exe/mintty.
+::
+:: CHERE_INVOKING=1 mirrors the same fix applied to the mintty-based
+:: launcher's login shell (see launch_branded_mintty in
+:: patou-bash/src/main.rs): without it, a `--login` bash unconditionally
+:: `cd`s to $HOME on startup, discarding the working directory VS Code
+:: actually opened the terminal in.
+::
+:: Unlike install.ps1's Add-VsCodeTerminalProfile (which does a real
+:: read-modify-write via ConvertFrom-Json/ConvertTo-Json), this script has
+:: no JSON parser available without depending on PowerShell - which this
+:: installer deliberately avoids. So it only ever auto-writes a
+:: settings.json that doesn't exist yet (content it fully owns, so there's
+:: nothing to corrupt); if one already exists, it prints the snippet to
+:: add by hand instead of risking text surgery on a file it doesn't
+:: understand.
+:add_vscode_terminal_profile
+setlocal EnableDelayedExpansion
+
+set "bash_path=%install_dir%\msys64\usr\bin\bash.exe"
+if not exist "%bash_path%" (
+  endlocal
+  goto :eof
+)
+
+set "home_win=%USERPROFILE%"
+if not defined home_win set "home_win=%HOMEDRIVE%%HOMEPATH%"
+set "drive_letter=%home_win:~0,1%"
+set "home_rest=%home_win:~2%"
+set "home_rest=%home_rest:\=/%"
+call :lower drive_letter
+set "home_posix=/%drive_letter%%home_rest%"
+
+:: JSON string values need backslashes doubled, same as the .reg
+:: generation in add_patou_bash_here above.
+set "bash_path_json=%bash_path:\=\\%"
+
+for %%E in ("Code" "Code - Insiders") do (
+  set "user_dir=%APPDATA%\%%~E\User"
+  if exist "!user_dir!" (
+    set "settings_path=!user_dir!\settings.json"
+    if exist "!settings_path!" (
+      findstr /c:"Patou Bash" "!settings_path!" >nul 2>&1
+      if errorlevel 1 (
+        echo note: !settings_path! already exists - add this to its "terminal.integrated.profiles.windows" ^(create that key if it's missing^) for a 'Patou Bash' entry in VS Code's terminal dropdown:
+        echo   "Patou Bash": { "path": "%bash_path_json%", "args": ["--login", "-i"], "icon": "terminal-bash", "env": { "CHERE_INVOKING": "1", "HOME": "%home_posix%" } }
+      )
+    ) else (
+      (
+        echo {
+        echo   "terminal.integrated.profiles.windows": {
+        echo     "Patou Bash": {
+        echo       "path": "%bash_path_json%",
+        echo       "args": ["--login", "-i"],
+        echo       "icon": "terminal-bash",
+        echo       "env": { "CHERE_INVOKING": "1", "HOME": "%home_posix%" }
+        echo     }
+        echo   }
+        echo }
+      ) > "!settings_path!"
+      echo Added a 'Patou Bash' terminal profile to !settings_path!
+    )
+  )
+)
+
+endlocal
+goto :eof
+
+:: Lowercases the single character held by the variable named %1 (used
+:: above for a drive letter). Small inline A-Z lookup table rather than a
+:: dependency, since batch has no built-in lowercasing.
+:lower
+setlocal EnableDelayedExpansion
+set "s=!%~1!"
+for %%A in (A=a B=b C=c D=d E=e F=f G=g H=h I=i J=j K=k L=l M=m N=n O=o P=p Q=q R=r S=s T=t U=u V=v W=w X=x Y=y Z=z) do (
+  for /f "tokens=1,2 delims==" %%x in ("%%A") do set "s=!s:%%x=%%y!"
+)
+endlocal & set "%~1=%s%"
 goto :eof

@@ -28,6 +28,37 @@ foreach ($key in 'HKCU:\Software\Classes\Directory\Background\shell\PatouBashHer
     }
 }
 
+# Undo what scripts/install.ps1's Add-VsCodeTerminalProfile added, if
+# anything: the "Patou Bash" entry under `terminal.integrated.profiles.windows`
+# in every VS Code / VS Code Insiders user settings.json found, leaving the
+# rest of each file untouched. Skips (with a note) any settings.json that
+# doesn't parse as JSON, rather than risk mangling it.
+foreach ($edition in 'Code', 'Code - Insiders') {
+    $settingsPath = Join-Path $env:APPDATA "$edition\User\settings.json"
+    if (-not (Test-Path $settingsPath)) {
+        continue
+    }
+    try {
+        $raw = Get-Content -Raw -Path $settingsPath
+        if (-not $raw -or -not $raw.Trim()) {
+            continue
+        }
+        $settings = $raw | ConvertFrom-Json
+        $profiles = $settings.'terminal.integrated.profiles.windows'
+        if ($null -eq $profiles -or $profiles.PSObject.Properties.Name -notcontains 'Patou Bash') {
+            continue
+        }
+        $profiles.PSObject.Properties.Remove('Patou Bash')
+        if (-not $profiles.PSObject.Properties.Name) {
+            $settings.PSObject.Properties.Remove('terminal.integrated.profiles.windows')
+        }
+        ($settings | ConvertTo-Json -Depth 100) | Set-Content -Path $settingsPath -Encoding utf8
+        Write-Host "Removed the 'Patou Bash' terminal profile from $settingsPath"
+    } catch {
+        Write-Host "note: could not clean up $settingsPath ($($_.Exception.Message)) - remove the 'Patou Bash' VS Code terminal profile manually if present"
+    }
+}
+
 # The "Patou Bash" Start Menu shortcut scripts/install.ps1's
 # Add-StartMenuShortcut added, if present.
 $shortcutPath = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs\Patou Bash.lnk'

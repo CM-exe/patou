@@ -109,6 +109,24 @@ else with `git` on `PATH`. That fallback reuses the system install's own
 `git-bash.exe` exactly as configured, deliberately without Patou's
 branding, since it's shared with the user's own everyday Git Bash use.
 
+### VS Code integrated terminal (Windows)
+
+Alongside the context menu entry above, `install.ps1`/`install.cmd` also
+add a **Patou Bash** entry to `terminal.integrated.profiles.windows` in
+VS Code's (and VS Code Insiders') user `settings.json`, so the bundled
+bash is selectable from VS Code's integrated-terminal dropdown too —
+separate from "Open Patou bash here", which always opens its own
+standalone mintty window rather than running inside VS Code's own
+terminal panel. Set `PATOU_SKIP_VSCODE_PROFILE` to skip just this step.
+
+`install.ps1` merges this into `settings.json` through a proper
+read-parse-write (so existing settings and any profiles you've already
+configured survive untouched); `install.cmd` — which deliberately has no
+PowerShell dependency, and so no JSON parser — only writes the file when
+it doesn't exist yet, and otherwise prints the snippet to add by hand.
+Uninstalling removes the entry the same way (or, from `uninstall.cmd`,
+prints a reminder to remove it yourself).
+
 ## From source
 
 ```bash
@@ -158,8 +176,9 @@ curl -fsSL https://raw.githubusercontent.com/CM-exe/patou/main/scripts/uninstall
 
 Each removes the `patou` binary from its install directory — set
 `PATOU_INSTALL_DIR` if you installed to a non-default location — and, on
-Windows, also removes the "Open Patou bash here" context menu entry and
-Start Menu shortcut if `install.ps1`/`install.cmd` added them.
+Windows, also removes the "Open Patou bash here" context menu entry,
+Start Menu shortcut, and VS Code terminal profile if
+`install.ps1`/`install.cmd` added them.
 
 **Installed with `cargo install --path .`:**
 
