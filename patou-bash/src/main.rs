@@ -149,11 +149,35 @@ PS1='\[\033[32m\]\u@\h \[\033[35m\]\w\[\033[0m\]$(__patou_git_branch)\n\$ '
             .arg("/usr/bin/bash")
             .arg("--login")
             .arg("-i");
+        // git-bash.exe explicitly sets HOME to the Windows user profile
+        // before it ever gets to bash - it's not a MINGW64-vs-MSYS thing
+        // (MSYSTEM only picks which subsystem's bin/ goes on PATH). Left
+        // unset, this bundled MSYS2's own HOME resolution can land
+        // somewhere else entirely (e.g. a fabricated /home/<user> under
+        // this private msys64\, which may not even exist yet) instead of
+        // the same folder Explorer/git-bash/Windows itself call "home",
+        // so `~` wouldn't match. Setting it here, the same way
+        // git-bash.exe does, keeps the two consistent.
+        if let Some(home) = windows_home_dir() {
+            cmd.env("HOME", to_posix_path(&home));
+        }
         if let Some(dir) = target_dir {
             cmd.current_dir(dir);
         }
         cmd.spawn()?;
         Ok(())
+    }
+
+    /// The Windows user profile directory (`C:\Users\bob`), i.e. what
+    /// git-bash.exe itself uses as `HOME` - `USERPROFILE`, falling back
+    /// to `HOMEDRIVE`+`HOMEPATH` for the rare environment missing it.
+    fn windows_home_dir() -> Option<PathBuf> {
+        if let Some(profile) = env::var_os("USERPROFILE") {
+            return Some(PathBuf::from(profile));
+        }
+        let mut combined = env::var_os("HOMEDRIVE")?;
+        combined.push(env::var_os("HOMEPATH")?);
+        Some(PathBuf::from(combined))
     }
 
     fn app_launch_cmd_option(own_exe: &Path) -> OsString {
