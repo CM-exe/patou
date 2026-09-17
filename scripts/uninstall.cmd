@@ -34,23 +34,9 @@ for %%K in (
   )
 )
 
-:: What scripts/install.cmd's add_vscode_terminal_profile may have added.
-:: Only ever prints a note here (rather than editing settings.json in
-:: place): install.cmd itself only ever auto-creates that file when it
-:: didn't already exist, and has no JSON parser to safely remove just the
-:: "Patou Bash" entry from one that does, without risking the rest of the
-:: file's content.
-setlocal EnableDelayedExpansion
-for %%E in ("Code" "Code - Insiders") do (
-  set "settings_path=%APPDATA%\%%~E\User\settings.json"
-  if exist "!settings_path!" (
-    findstr /c:"Patou Bash" "!settings_path!" >nul 2>&1
-    if not errorlevel 1 (
-      echo note: !settings_path! has a 'Patou Bash' terminal profile - remove its entry from "terminal.integrated.profiles.windows" manually if you no longer want it
-    )
-  )
-)
-endlocal
+:: Undo what scripts/install.cmd's add_vscode_terminal_profile added, if
+:: anything - see remove_vscode_terminal_profile below.
+call :remove_vscode_terminal_profile
 
 :: The "Patou Bash" Start Menu shortcut scripts/install.cmd's
 :: add_start_menu_shortcut added, if present.
@@ -84,3 +70,58 @@ for %%N in (msys64 git) do (
 )
 
 endlocal
+exit /b 0
+
+:: Removes the "Patou Bash" entry from `terminal.integrated.profiles.windows`
+:: in every VS Code / VS Code Insiders user settings.json found (and that
+:: key itself too, if removing the entry leaves it empty), leaving the
+:: rest of each file untouched. Like install.cmd's add_vscode_terminal_profile
+:: (which this mirrors), this script has no JSON parser available without
+:: depending on PowerShell, so it downloads the same VBScript helper
+:: (scripts/patou-vscode-profile.vbs) that script uses to add the entry,
+:: this time invoked in its "remove" mode.
+:remove_vscode_terminal_profile
+setlocal EnableDelayedExpansion
+
+set "vbs_url=https://raw.githubusercontent.com/CM-exe/patou/main/scripts/patou-vscode-profile.vbs"
+set "vbs_file=%TEMP%\patou-vscode-profile-%RANDOM%.vbs"
+curl -fsSL "%vbs_url%" -o "%vbs_file%"
+if errorlevel 1 (
+  for %%E in ("Code" "Code - Insiders") do (
+    set "settings_path=%APPDATA%\%%~E\User\settings.json"
+    if exist "!settings_path!" (
+      findstr /c:"Patou Bash" "!settings_path!" >nul 2>&1
+      if not errorlevel 1 (
+        echo note: could not download the VS Code terminal profile helper - remove the 'Patou Bash' entry from !settings_path! manually if present
+      )
+    )
+  )
+  del /f /q "%vbs_file%" >nul 2>&1
+  endlocal
+  goto :eof
+)
+
+set "PATOU_VSCODE_MODE=remove"
+
+for %%E in ("Code" "Code - Insiders") do (
+  set "settings_path=%APPDATA%\%%~E\User\settings.json"
+  if exist "!settings_path!" (
+    set "PATOU_VSCODE_SETTINGS=!settings_path!"
+    set "vbs_result="
+    for /f "usebackq delims=" %%R in (`cscript //nologo "%vbs_file%" 2^>^&1`) do set "vbs_result=%%R"
+    if "!vbs_result!"=="OK" (
+      echo Removed the 'Patou Bash' terminal profile from !settings_path!
+    ) else if "!vbs_result!"=="SKIP" (
+      rem Nothing to remove.
+    ) else (
+      echo note: could not update !settings_path! ^(!vbs_result!^) - remove the 'Patou Bash' entry manually if present
+    )
+  )
+)
+
+set "PATOU_VSCODE_MODE="
+set "PATOU_VSCODE_SETTINGS="
+del /f /q "%vbs_file%" >nul 2>&1
+
+endlocal
+goto :eof

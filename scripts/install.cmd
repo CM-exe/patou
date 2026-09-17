@@ -249,7 +249,8 @@ goto :eof
 :: adds the "terminal.integrated.profiles.windows" key if missing, then
 :: adds the "Patou Bash" entry under it if missing, leaving the rest of
 :: the file untouched. See that file for the CHERE_INVOKING/icon/color
-:: reasoning behind the entry it writes.
+:: reasoning behind the entry it writes, and for the "remove" mode
+:: scripts/uninstall.cmd uses to undo this.
 :add_vscode_terminal_profile
 setlocal EnableDelayedExpansion
 
@@ -277,6 +278,7 @@ if errorlevel 1 (
   goto :eof
 )
 
+set "PATOU_VSCODE_MODE=add"
 set "PATOU_VSCODE_BASH_PATH=%bash_path%"
 set "PATOU_VSCODE_HOME_POSIX=%home_posix%"
 
@@ -297,6 +299,7 @@ for %%E in ("Code" "Code - Insiders") do (
   )
 )
 
+set "PATOU_VSCODE_MODE="
 set "PATOU_VSCODE_SETTINGS="
 set "PATOU_VSCODE_BASH_PATH="
 set "PATOU_VSCODE_HOME_POSIX="

@@ -133,9 +133,9 @@ small VBScript helper
 ([`scripts/patou-vscode-profile.vbs`](https://github.com/CM-exe/patou/blob/main/scripts/patou-vscode-profile.vbs),
 `cscript` being built into every Windows version) rather than editing
 JSON with plain batch text commands. Uninstalling removes the entry again
-the same way (or, from `uninstall.cmd`, prints a reminder to remove it
-yourself, since it has no JSON parser to safely isolate just that one
-entry either).
+the same way — `uninstall.ps1` through its own `ConvertFrom-Json`/
+`ConvertTo-Json` read-modify-write, `uninstall.cmd` through the same
+`patou-vscode-profile.vbs` helper invoked in its "remove" mode.
 
 The profile's icon is `terminal-bash` rather than Patou's own logo: VS
 Code's terminal profile `icon` only accepts a built-in codicon ID for
