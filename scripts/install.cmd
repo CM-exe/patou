@@ -72,6 +72,9 @@ exit /b 0
 setlocal
 
 set "exe_path=%install_dir%\patou-bash.exe"
+:: .reg string values are backslash-escaped: a literal "\" must be
+:: written as "\\", or reg import mangles/rejects the path.
+set "exe_path_reg=%exe_path:\=\\%"
 set "reg_file=%TEMP%\patou-bash-here-%RANDOM%.reg"
 
 echo Windows Registry Editor Version 5.00>"%reg_file%"
@@ -80,13 +83,13 @@ echo [HKEY_CURRENT_USER\Software\Classes\Directory\Background\shell\PatouBashHer
 echo @="Open Patou bash here">>"%reg_file%"
 echo.>>"%reg_file%"
 echo [HKEY_CURRENT_USER\Software\Classes\Directory\Background\shell\PatouBashHere\command]>>"%reg_file%"
-echo @="\"%exe_path%\" \"%%V\"">>"%reg_file%"
+echo @="\"%exe_path_reg%\" \"%%V\"">>"%reg_file%"
 echo.>>"%reg_file%"
 echo [HKEY_CURRENT_USER\Software\Classes\Directory\shell\PatouBashHere]>>"%reg_file%"
 echo @="Open Patou bash here">>"%reg_file%"
 echo.>>"%reg_file%"
 echo [HKEY_CURRENT_USER\Software\Classes\Directory\shell\PatouBashHere\command]>>"%reg_file%"
-echo @="\"%exe_path%\" \"%%1\"">>"%reg_file%"
+echo @="\"%exe_path_reg%\" \"%%1\"">>"%reg_file%"
 
 reg import "%reg_file%" >nul 2>&1
 if errorlevel 1 (

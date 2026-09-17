@@ -45,13 +45,20 @@ best-effort — nothing breaks if Git for Windows isn't installed yet, the
 menu entry just won't do anything until it is.
 
 `patou-bash.exe` is a small native launcher (built from
-[`src/bin/patou-bash.rs`](https://github.com/CM-exe/patou/blob/main/src/bin/patou-bash.rs))
-that finds Git for Windows itself and opens an ordinary Git Bash session
-— with a Patou banner, the install directory already on `PATH` (so
-`patou` is available even if you haven't added it to `PATH` globally),
-and a grey/blue/light-blue mintty color theme in place of Git Bash's
-default yellow/green palette. Uninstalling removes the binary and the
-menu entry again.
+[`src/bin/patou-bash.rs`](https://github.com/CM-exe/patou/blob/main/src/bin/patou-bash.rs),
+using [`assets/favicon.ico`](https://github.com/CM-exe/patou/blob/main/assets/favicon.ico)
+as its icon like any other installed app) that finds Git for Windows
+itself and opens an ordinary Git Bash session — with a Patou banner, the
+install directory already on `PATH` (so `patou` is available even if you
+haven't added it to `PATH` globally), and a grey/blue/light-blue mintty
+color theme in place of Git Bash's default yellow/green palette.
+Uninstalling removes the binary and the menu entry again.
+
+Finding Git for Windows itself is best-effort across several strategies
+(the registry key the official installer writes, common install
+directories, `git --exec-path`/`where git.exe` for anything else with
+`git` on `PATH`) since not every way of installing Git for Windows
+(winget, scoop, a portable zip, ...) sets the same markers.
 
 ## From source
 

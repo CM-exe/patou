@@ -46,14 +46,12 @@ mod windows_only {
 
         let git_install = find_git_install().ok_or_else(|| {
             io::Error::other(
-                "Git for Windows not found (no InstallPath under HKCU/HKLM SOFTWARE\\GitForWindows)",
+                "Git for Windows not found (checked the registry, common install \
+                 locations, and `git`/`where` on PATH)",
             )
         })?;
 
-        let mintty = git_install.join("usr").join("bin").join("mintty.exe");
-        if !mintty.is_file() {
-            return Err(io::Error::other(format!("{} not found", mintty.display())));
-        }
+        let mintty = mintty_path(&git_install);
 
         let shell_script = install_dir.join("patou-shell.sh");
         fs::write(&shell_script, build_shell_script(install_dir))?;
@@ -116,13 +114,90 @@ mod windows_only {
         }
     }
 
+    /// Tries several ways to locate a Git for Windows install, roughly in
+    /// order of cost: the registry key the official installer writes
+    /// (fast, but absent for e.g. winget/scoop/portable installs), a few
+    /// common install directories, then `git --exec-path` / `where
+    /// git.exe` for anything else with `git` on PATH. Each candidate is
+    /// only accepted once `mintty_path` under it actually exists, since a
+    /// stale or unrelated match is as good as no match.
     fn find_git_install() -> Option<PathBuf> {
         for hive in ["HKCU", "HKLM"] {
             if let Some(path) = reg_query_value(hive, r"SOFTWARE\GitForWindows", "InstallPath") {
-                return Some(PathBuf::from(path));
+                let path = PathBuf::from(path);
+                if mintty_path(&path).is_file() {
+                    return Some(path);
+                }
             }
         }
-        None
+
+        if let Some(path) = common_install_dirs()
+            .into_iter()
+            .find(|path| mintty_path(path).is_file())
+        {
+            return Some(path);
+        }
+
+        git_root_from_exec_path().or_else(git_root_from_path_lookup)
+    }
+
+    fn mintty_path(git_install: &Path) -> PathBuf {
+        git_install.join("usr").join("bin").join("mintty.exe")
+    }
+
+    fn common_install_dirs() -> Vec<PathBuf> {
+        let mut dirs = Vec::new();
+        for var in ["ProgramFiles", "ProgramFiles(x86)"] {
+            if let Some(base) = env::var_os(var) {
+                dirs.push(PathBuf::from(base).join("Git"));
+            }
+        }
+        if let Some(base) = env::var_os("LocalAppData") {
+            dirs.push(PathBuf::from(base).join("Programs").join("Git"));
+        }
+        dirs
+    }
+
+    /// `git --exec-path` prints something like
+    /// `C:\Program Files\Git\mingw64\libexec\git-core`; walk up from
+    /// there looking for the install root (recognised by `mintty_path`
+    /// existing under it).
+    fn git_root_from_exec_path() -> Option<PathBuf> {
+        let output = Command::new("git").arg("--exec-path").output().ok()?;
+        if !output.status.success() {
+            return None;
+        }
+        let exec_path = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        if exec_path.is_empty() {
+            return None;
+        }
+        find_root_upwards(Path::new(&exec_path))
+    }
+
+    /// Falls back to resolving `git.exe` via PATH (`where`) and walking up
+    /// from wherever that turns out to be (`cmd\`, `bin\`, or
+    /// `mingw64\bin\`, depending on the install).
+    fn git_root_from_path_lookup() -> Option<PathBuf> {
+        let output = Command::new("where").arg("git.exe").output().ok()?;
+        if !output.status.success() {
+            return None;
+        }
+        let first_match = String::from_utf8_lossy(&output.stdout)
+            .lines()
+            .next()?
+            .trim()
+            .to_string();
+        if first_match.is_empty() {
+            return None;
+        }
+        find_root_upwards(Path::new(&first_match))
+    }
+
+    fn find_root_upwards(start: &Path) -> Option<PathBuf> {
+        start
+            .ancestors()
+            .find(|candidate| mintty_path(candidate).is_file())
+            .map(Path::to_path_buf)
     }
 
     /// Shells out to `reg query` rather than adding a registry-access

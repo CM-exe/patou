@@ -9,6 +9,9 @@ regex = "1.13.1"
 serde = { version = "1.0.229", features = ["derive"] }
 toml = "1.1.6"
 
+[build-dependencies]
+winresource = "0.1.31"
+
 [dev-dependencies]
 assert_cmd = "2.2.2"
 predicates = "3.1.4"
