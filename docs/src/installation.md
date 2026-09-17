@@ -67,12 +67,16 @@ once there (following the same sequence the official
 [`msys2/setup-msys2`](https://github.com/msys2/setup-msys2) GitHub
 Action uses: a first bash run, a two-pass `pacman -Syuu` with a
 `taskkill` in between to clear a lingering lock on `msys-2.0.dll`, then
-`pacman -S git`) — and published to this repo's rolling `msys2-bundle`
-release, decoupled from patou's own version tags since it doesn't track
-patou's release cadence. The install scripts just download and extract
-that one finished archive — no `pacman`, no bootstrap, on the machine
-being installed to. See `PATOU_MSYS2_BUNDLE_URL` in each script to point
-at a different bundle. This keeps both install scripts free of a
+`pacman -S git`) — and published as `patou-msys2-x86_64.zip`, an asset
+on that **same patou release**, right alongside `patou-<target>.zip`.
+The install scripts fetch it using the exact same version they're
+installing (`PATOU_VERSION`/`latest`), just like the main download —
+just a download and extract, no `pacman`, no bootstrap, on the machine
+being installed to. Building it only starts once that release actually
+exists (triggered by the Release workflow *completing*, not by the same
+tag push release.yml reacts to), since attaching to it requires it to
+already be there; see `PATOU_MSYS2_BUNDLE_URL` in each script to point
+at a different bundle instead. This keeps both install scripts free of a
 PowerShell dependency for this step too (`install.cmd` needed a
 generated `.ps1` for the bootstrap when it ran locally; a plain
 download+extract doesn't).

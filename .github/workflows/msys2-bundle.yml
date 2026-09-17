@@ -1,19 +1,29 @@
 name: MSYS2 bundle
 
 # Builds the "Open Patou bash here" MSYS2 + git bundle that
-# patou-bash.exe uses, and publishes it to a rolling `msys2-bundle`
-# release. This runs the pacman-based setup (extract the MSYS2 base
-# archive, bootstrap it, install git) *once, in CI*, rather than on
-# every end user's machine at install time - scripts/install.ps1 and
-# scripts/install.cmd just download the finished archive this produces.
+# patou-bash.exe uses, and publishes it as an asset on the *same* patou
+# release as patou.exe/patou-bash.exe - scripts/install.ps1 and
+# scripts/install.cmd download it from whichever patou version they're
+# installing, exactly like the patou-<target>.zip assets. This runs the
+# pacman-based setup (extract the MSYS2 base archive, bootstrap it,
+# install git) *once, in CI*, rather than on every end user's machine at
+# install time.
 #
-# Decoupled from the main Release workflow (release.yml): this bundle
-# doesn't track patou's own version, and rebuilding/re-uploading ~150+ MB
-# on every patou patch release would be wasteful. Run it manually
-# whenever a refreshed bundle is wanted, or let the weekly schedule keep
-# it reasonably current.
+# Triggered by the Release workflow (release.yml) *completing*, rather
+# than the same tag push, because uploading into that release requires
+# it to already exist - release.yml's own `release` job is what creates
+# it, and that has to finish first. The two workflows are otherwise
+# independent (this one doesn't need release.yml's build output, just
+# somewhere to attach its own asset). If Release didn't actually publish
+# anything (e.g. failed, or was run manually off a branch with no tag),
+# this falls back to attaching to patou's current latest release rather
+# than skipping - see "Determine target release tag" below. Also runs
+# manually or on a weekly schedule, for a refresh in between releases.
 
 on:
+  workflow_run:
+    workflows: ["Release"]
+    types: [completed]
   workflow_dispatch:
   schedule:
     - cron: "0 3 * * 1" # weekly, Monday 03:00 UTC
@@ -23,6 +33,7 @@ permissions:
 
 jobs:
   build:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     runs-on: windows-latest
     steps:
       - name: Download MSYS2 base
@@ -34,7 +45,22 @@ jobs:
           # Self-extracting 7-Zip archive containing a top-level msys64\
           # folder: -y accepts the license/skips prompts, -oC:\ (no
           # space) sets the destination's parent directory.
-          .\msys2-base.sfx.exe -y "-oC:\"
+          & .\msys2-base.sfx.exe -y "-oC:\"
+
+          # This particular sfx stub can return before extraction has
+          # actually finished flushing every file to disk (observed:
+          # usr\bin\bash.exe usable immediately, usr\bin\pacman.exe -
+          # alphabetically later in the archive - not yet present),
+          # so wait for pacman.exe specifically rather than trusting
+          # that the process having exited means extraction is done.
+          $pacmanPath = 'C:\msys64\usr\bin\pacman.exe'
+          $deadline = (Get-Date).AddMinutes(2)
+          while (-not (Test-Path $pacmanPath) -and (Get-Date) -lt $deadline) {
+            Start-Sleep -Seconds 2
+          }
+          if (-not (Test-Path $pacmanPath)) {
+            throw "extraction did not produce $pacmanPath within the timeout"
+          }
 
       - name: Bootstrap MSYS2 and install git
         shell: pwsh
@@ -46,22 +72,28 @@ jobs:
           # usr\bin\msys-2.0.dll itself while a pacman-spawned signature
           # verification helper still has it open - the taskkill clears
           # that before the second pass, which then completes.
+          #
+          # pacman is invoked by full path (not just "pacman"): bash/sed
+          # resolved fine by bare name in testing while pacman
+          # specifically didn't, so this sidesteps that PATH question
+          # entirely rather than relying on it being fixed upstream.
           $bash = 'C:\msys64\usr\bin\bash.exe'
+          $pacman = '/usr/bin/pacman'
 
           & $bash '-lc' 'uname -a'
           & $bash '-lc' "sed -i 's/^CheckSpace/#CheckSpace/g' /etc/pacman.conf"
-          & $bash '-lc' "pacman -Syuu --noconfirm --overwrite '*'" 2>&1 | Out-Null
+          & $bash '-lc' "$pacman -Syuu --noconfirm --overwrite '*'" 2>&1 | Out-Null
           taskkill /F /FI "MODULES eq msys-2.0.dll" 2>&1 | Out-Null
-          & $bash '-lc' "pacman -Syuu --noconfirm --overwrite '*'"
+          & $bash '-lc' "$pacman -Syuu --noconfirm --overwrite '*'"
 
-          & $bash '-lc' "pacman -S --needed --noconfirm --overwrite '*' git"
+          & $bash '-lc' "$pacman -S --needed --noconfirm --overwrite '*' git"
           if (-not (Test-Path 'C:\msys64\usr\bin\git.exe')) {
             throw 'pacman did not install git'
           }
 
           # Drop pacman's downloaded package cache - not needed at
           # runtime, and it's a meaningful chunk of the archive size.
-          & $bash '-lc' 'pacman -Scc --noconfirm'
+          & $bash '-lc' "$pacman -Scc --noconfirm"
 
       - name: Package
         shell: pwsh
@@ -89,13 +121,26 @@ jobs:
         with:
           name: patou-msys2-x86_64
 
-      - name: Publish to the rolling msys2-bundle release
+      - name: Determine target release tag
+        id: tag
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if ! gh release view msys2-bundle >/dev/null 2>&1; then
-            gh release create msys2-bundle \
-              --title "Bundled MSYS2 + git (for Open Patou bash here)" \
-              --notes "Auto-built by .github/workflows/msys2-bundle.yml. Not tied to patou's own version - scripts/install.ps1 and scripts/install.cmd always fetch this release's current asset."
+          # A workflow_run off an actual tag push means release.yml just
+          # created (or updated) that tag's release - attach there. Any
+          # other trigger (workflow_dispatch/schedule here, or a manual,
+          # tagless run of Release) has no specific release in context,
+          # so fall back to whatever patou's current latest release is.
+          if [ "${{ github.event_name }}" = "workflow_run" ] && [ "${{ github.event.workflow_run.event }}" = "push" ]; then
+            tag="${{ github.event.workflow_run.head_branch }}"
+          else
+            tag="$(gh release view --json tagName -q .tagName)"
           fi
-          gh release upload msys2-bundle patou-msys2-x86_64.zip --clobber
+          echo "Target release: $tag"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+      - name: Upload to that release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload "${{ steps.tag.outputs.tag }}" patou-msys2-x86_64.zip --clobber

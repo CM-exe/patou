@@ -14,8 +14,8 @@
 ::                         MSYS2 + git download (~150-300 MB) entirely -
 ::                         only patou.exe gets installed
 ::   PATOU_MSYS2_BUNDLE_URL  MSYS2 + git bundle to download (default: the
-::                           current asset from this repo's rolling
-::                           `msys2-bundle` release, built by
+::                           patou-msys2-x86_64.zip asset on the same
+::                           release as patou.exe, built by
 ::                           .github/workflows/msys2-bundle.yml)
 
 setlocal
@@ -85,7 +85,10 @@ exit /b 0
 :: This is a single prebuilt archive, not a fresh MSYS2 setup on this
 :: machine: the pacman-based bootstrap (extract, bootstrap, install git)
 :: runs once in CI (.github/workflows/msys2-bundle.yml) rather than on
-:: every install - here, it's just a download and an extract.
+:: every install - here, it's just a download and an extract. It's an
+:: asset on the *same* patou release as patou.exe (attached there after
+:: the fact, once that release exists - see msys2-bundle.yml), so it
+:: uses the exact same %repo%/%version% patou.exe itself came from.
 :install_bundled_msys2
 setlocal
 
@@ -95,10 +98,14 @@ if exist "%msys_dir%\usr\bin\git.exe" (
   goto :eof
 )
 
-if "%PATOU_MSYS2_BUNDLE_URL%"=="" (
-  set "bundle_url=https://github.com/CM-exe/patou/releases/download/msys2-bundle/patou-msys2-x86_64.zip"
-) else (
+if not "%PATOU_MSYS2_BUNDLE_URL%"=="" (
   set "bundle_url=%PATOU_MSYS2_BUNDLE_URL%"
+) else (
+  if "%version%"=="latest" (
+    set "bundle_url=https://github.com/%repo%/releases/latest/download/patou-msys2-x86_64.zip"
+  ) else (
+    set "bundle_url=https://github.com/%repo%/releases/download/%version%/patou-msys2-x86_64.zip"
+  )
 )
 set "bundle_tmp=%TEMP%\patou-msys2-bundle-%RANDOM%.zip"
 
