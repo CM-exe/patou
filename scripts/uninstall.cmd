@@ -34,8 +34,9 @@ for %%K in (
   )
 )
 
-:: patou-bash.exe itself, and the helper files it writes next to itself
-:: on each launch (patou-shell.sh, patou-bash.minttyrc).
+:: patou-bash.exe itself, its error log, and patou-shell.sh/patou-bash.minttyrc
+:: left behind by older patou-bash.exe versions (now written inside the
+:: bundled git\ folder below instead, so removing that covers current ones).
 for %%N in (patou-bash.exe patou-shell.sh patou-bash.minttyrc patou-bash-error.log) do (
   if exist "%install_dir%\%%N" (
     del /f /q "%install_dir%\%%N"

@@ -50,24 +50,35 @@ in the repository
 ([`patou-bash/`](https://github.com/CM-exe/patou/tree/main/patou-bash),
 a `cargo build` workspace member alongside the main `patou` package)
 using [`assets/favicon.ico`](https://github.com/CM-exe/patou/blob/main/assets/favicon.ico)
-as its icon like any other installed app. It opens an ordinary Git Bash
-session — with a Patou banner, the install directory already on `PATH`
-(so `patou` is available even if you haven't added it to `PATH`
-globally), and a grey/blue/light-blue mintty color theme in place of Git
-Bash's default yellow/green palette. Uninstalling removes the binary,
-the bundled Git for Windows copy, and the menu entry again.
+as its icon like any other installed app. Uninstalling removes the
+binary, the bundled Git for Windows copy, and the menu entry again.
 
 It's self-contained rather than depending on a system-wide Git for
 Windows install: `install.ps1`/`install.cmd` download Git for Windows'
 official "PortableGit" distribution once (see `PATOU_GIT_TAG` /
 `PATOU_GIT_ASSET` in each script to pin a different release) and extract
-it into a private `git\` folder next to `patou-bash.exe`, which is what
-it actually uses. If that's ever missing (a broken install, or
+it into a private `git\` folder next to `patou-bash.exe`. Rather than
+reimplementing what launching Git Bash involves, patou-bash.exe reuses
+Git for Windows' own launcher from that folder, `git-bash.exe` — the
+same binary and `--cd=<dir>` argument the official installer's own "Git
+Bash Here" shortcut uses — and layers Patou's banner and mintty color
+theme on through Git for Windows' own customization points (an
+`etc/profile.d/*.sh` script, sourced automatically by every login shell,
+and `etc/minttyrc`, mintty's default config file), applied only to its
+own private copy so a fallback to a system-wide install (see below)
+isn't left with Patou's branding. The result: an ordinary Git Bash
+session, with the install directory already on `PATH` (so `patou` is
+available even if you haven't added it to `PATH` globally) and a
+grey/blue/light-blue mintty color theme in place of Git Bash's default
+yellow/green palette.
+
+If the bundled copy is ever missing (a broken install, or
 `patou-bash.exe` run from somewhere else entirely), it falls back to
 looking for a system-wide install instead of doing nothing — the
 registry key the official installer writes, common install directories,
 then `git --exec-path`/`where git.exe` for anything else with `git` on
-`PATH`.
+`PATH` — and leaves it exactly as Git for Windows configured it, since
+that copy is shared with the user's own everyday Git Bash use.
 
 ## From source
 
