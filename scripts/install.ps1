@@ -279,6 +279,15 @@ try {
 if (-not $env:PATOU_SKIP_BASH_HERE) {
     try {
         Install-BundledMsys2 -InstallDir $installDir -Repo $repo -Version $version
+        # Writes patou-banner.sh/patou-prompt.sh/minttyrc into the bundled
+        # MSYS2 install right away (patou-bash.exe's own --customize-only
+        # flag - see try_run in patou-bash/src/main.rs), rather than
+        # waiting for "Open Patou bash here" to be used for the first
+        # time: most importantly, that's what puts `patou` itself on PATH
+        # inside a bundled-bash session, which the VS Code terminal
+        # profile below needs from its very first use too, since it runs
+        # bash.exe directly and never goes through patou-bash.exe at all.
+        & (Join-Path $installDir 'patou-bash.exe') --customize-only
         Add-PatouBashHere -InstallDir $installDir
         Add-StartMenuShortcut -InstallDir $installDir
         if (-not $env:PATOU_SKIP_VSCODE_PROFILE) {

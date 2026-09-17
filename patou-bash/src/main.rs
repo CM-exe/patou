@@ -125,9 +125,36 @@ esac
             .parent()
             .ok_or_else(|| io::Error::other("patou-bash.exe has no parent directory"))?;
 
+        let first_arg = env::args_os().nth(1);
+
+        // A hidden flag scripts/install.ps1 and scripts/install.cmd run
+        // once, right after installing, rather than waiting for someone
+        // to use "Open Patou bash here" for the first time: it writes the
+        // same profile.d banner/prompt scripts customize_bundled_git
+        // always (re)writes before launching a real session below - most
+        // importantly the PATH export in banner_script, which is what
+        // puts `patou` itself on PATH inside any bundled-bash session.
+        // Without this, that only ever happened on this launcher's own
+        // first run - fine for the mintty-based context menu entry, but
+        // VS Code's integrated-terminal profile (see
+        // Add-VsCodeTerminalProfile in scripts/install.ps1) runs
+        // bash.exe directly and never goes through this launcher at all,
+        // so `patou` would stay missing from its PATH until someone
+        // separately used "Open Patou bash here" at least once. No
+        // console or window is shown either way (windows_subsystem =
+        // "windows"), so this is safe to invoke unattended from an
+        // install script.
+        if first_arg.as_deref() == Some(std::ffi::OsStr::new("--customize-only")) {
+            let bundled = install_dir.join("msys64");
+            if mintty_exe(&bundled).is_file() {
+                customize_bundled_git(&bundled, install_dir)?;
+            }
+            return Ok(());
+        }
+
         // The target folder comes from the context menu's %V/%1
         // substitution (the first argument).
-        let target_dir = env::args_os().nth(1).map(PathBuf::from).filter(|p| p.is_dir());
+        let target_dir = first_arg.map(PathBuf::from).filter(|p| p.is_dir());
 
         let bundled = install_dir.join("msys64");
         if mintty_exe(&bundled).is_file() {

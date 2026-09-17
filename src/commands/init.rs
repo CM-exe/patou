@@ -82,6 +82,7 @@ pub fn run() -> io::Result<()> {
     let patou_dir = repo_root.join(".patou");
     let hooks_dir = patou_dir.join("hooks");
     fs::create_dir_all(&hooks_dir)?;
+    hide_on_windows(&patou_dir);
 
     let config_path = patou_dir.join("config.toml");
     write_if_absent(&config_path, DEFAULT_CONFIG)?;
@@ -125,6 +126,31 @@ fn write_if_absent(path: &Path, contents: &str) -> io::Result<()> {
     }
     fs::write(path, contents)
 }
+
+// A leading "." already keeps `.patou/` out of `ls`/Finder by convention on
+// Unix, but Windows has no such convention - a dot-prefixed folder shows up
+// in Explorer like any other unless its `FILE_ATTRIBUTE_HIDDEN` attribute is
+// set explicitly. Shelling out to `attrib` (built into every Windows
+// install) rather than calling `SetFileAttributesW` directly avoids a
+// dependency just for this, matching how src/git.rs already shells out to
+// `git` instead of linking a Git library - and matches what Git for Windows
+// itself does to `.git/` for the same reason. Best-effort: a failure here
+// (e.g. `attrib` missing from PATH) doesn't fail `init` over what's purely
+// cosmetic, unlike the config/hooks/install-script files above.
+#[cfg(windows)]
+fn hide_on_windows(path: &Path) {
+    let succeeded = std::process::Command::new("attrib")
+        .arg("+h")
+        .arg(path)
+        .status()
+        .is_ok_and(|status| status.success());
+    if !succeeded {
+        println!("note: could not mark {} as hidden", path.display());
+    }
+}
+
+#[cfg(not(windows))]
+fn hide_on_windows(_path: &Path) {}
 
 #[cfg(unix)]
 fn make_executable(path: &Path) -> io::Result<()> {

@@ -72,6 +72,15 @@ if errorlevel 1 (
 
 if not defined PATOU_SKIP_BASH_HERE (
   call :install_bundled_msys2
+  :: Writes patou-banner.sh/patou-prompt.sh/minttyrc into the bundled
+  :: MSYS2 install right away (patou-bash.exe's own --customize-only
+  :: flag - see try_run in patou-bash/src/main.rs), rather than waiting
+  :: for "Open Patou bash here" to be used for the first time: most
+  :: importantly, that's what puts `patou` itself on PATH inside a
+  :: bundled-bash session, which the VS Code terminal profile below needs
+  :: from its very first use too, since it runs bash.exe directly and
+  :: never goes through patou-bash.exe at all.
+  "%install_dir%\patou-bash.exe" --customize-only
   call :add_patou_bash_here
   call :add_start_menu_shortcut
   if not defined PATOU_SKIP_VSCODE_PROFILE call :add_vscode_terminal_profile
