@@ -73,12 +73,14 @@ jobs:
           # verification helper still has it open - the taskkill clears
           # that before the second pass, which then completes.
           #
-          # pacman is invoked by full path (not just "pacman"): bash/sed
-          # resolved fine by bare name in testing while pacman
-          # specifically didn't, so this sidesteps that PATH question
-          # entirely rather than relying on it being fixed upstream.
+          # pacman is invoked by its exact full path, .exe included: bare
+          # "pacman" failed to resolve via $PATH (while bash/sed did, in
+          # the same session), and "/usr/bin/pacman" (no extension) then
+          # failed too - bash's PATH search auto-tries name and name.exe,
+          # but that auto-append does NOT happen for an explicit path
+          # containing a slash, so the .exe suffix has to be spelled out.
           $bash = 'C:\msys64\usr\bin\bash.exe'
-          $pacman = '/usr/bin/pacman'
+          $pacman = '/usr/bin/pacman.exe'
 
           & $bash '-lc' 'uname -a'
           & $bash '-lc' "sed -i 's/^CheckSpace/#CheckSpace/g' /etc/pacman.conf"
