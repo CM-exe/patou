@@ -66,6 +66,15 @@ mod windows_only {
 # this bundled MSYS2 install via /etc/profile. Written by patou-bash.exe
 # on each launch; scripts/uninstall.ps1 and scripts/uninstall.cmd remove
 # the whole bundled msys64\ folder.
+#
+# Reasserted via PROMPT_COMMAND rather than a plain one-shot `PS1=...`
+# here: on standalone MSYS2 (unlike Git for Windows, which sets its
+# default PS1 directly in /etc/profile, before profile.d runs), the
+# default interactive PS1 is set later, in ~/.bashrc/etc/bash.bashrc -
+# sourced by bash's login-shell init *after* /etc/profile.d, which would
+# silently clobber a plain assignment made here. Re-applying PS1 from
+# PROMPT_COMMAND, which every prompt draw invokes last, wins regardless
+# of that ordering.
 
 __patou_git_branch() {
     local branch
@@ -79,7 +88,14 @@ __patou_git_branch() {
     printf ' \033[1;%sm(%s)\033[0m' "$color" "$branch"
 }
 
-PS1='\[\033[32m\]\u@\h \[\033[35m\]\w\[\033[0m\]$(__patou_git_branch)\n\$ '
+__patou_set_prompt() {
+    PS1='\[\033[32m\]\u@\h \[\033[35m\]\w\[\033[0m\]'"$(__patou_git_branch)"'\n\$ '
+}
+
+case ";$PROMPT_COMMAND;" in
+    *";__patou_set_prompt;"*) ;;
+    *) PROMPT_COMMAND="__patou_set_prompt${PROMPT_COMMAND:+;$PROMPT_COMMAND}" ;;
+esac
 "#;
 
     pub fn run() {
