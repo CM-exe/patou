@@ -105,16 +105,18 @@ or light blue if that repo has a `.patou/` directory too.
 
 If a system-wide Git for Windows is also installed, the bundled bash
 session shares its config with it rather than starting from a blank
-slate: `user.name`/`user.email` (and anything else set with `git config
---global`) already carry over automatically, since both resolve their
-global `~/.gitconfig` from the same Windows user profile directory. On
-top of that, patou-bash also points the bundled git at that install's
-own *system*-level config (`GIT_CONFIG_SYSTEM`) and adds its
-`mingw64\bin\`/`cmd\` to `PATH`, so `credential.helper` (GitHub/GitLab
-sign-in via Git Credential Manager, typically configured there rather
-than in the global config) works the same way it does in your regular
-Git Bash, instead of needing a separate sign-in just for this bundled
-copy.
+slate: patou-bash points the bundled git at that install's own *global*
+config (`user.name`/`user.email`, etc. - `GIT_CONFIG_GLOBAL`) and
+*system*-level config (`credential.helper` - GitHub/GitLab sign-in via
+Git Credential Manager - `GIT_CONFIG_SYSTEM`), and adds its
+`mingw64\bin\`/`cmd\` to `PATH` so that credential helper actually
+resolves. Both are found by asking that install's own `git.exe` where it
+actually reads its config from, rather than assumed from a shared `HOME`
+- on some machines (e.g. a domain-joined profile with a redirected home
+directory) that assumption doesn't hold, and `user.name`/`user.email`
+would otherwise silently go missing in the bundled session. The result:
+the same identity and sign-in as your regular Git Bash, instead of a
+separate one just for this bundled copy.
 
 If the bundled MSYS2 install is ever missing (setup failed, or
 `patou-bash.exe` run from somewhere else entirely), it falls back to

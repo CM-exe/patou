@@ -302,26 +302,42 @@ esac
     /// logic - both ultimately run `bash --login`, which sources
     /// /etc/profile -> /etc/profile.d.
     ///
-    /// `user.name`/`user.email` already carry over on their own: this
-    /// bundled session's `HOME` is already pointed at the Windows user
-    /// profile (see launch_branded_mintty), the exact same file a system
-    /// Git for Windows resolves its own global `~/.gitconfig` from. What
-    /// doesn't carry over is *system*-level config - most importantly
-    /// `credential.helper` (GitHub/GitLab/etc. sign-in), which the Git
-    /// for Windows installer/Git Credential Manager setup writes into
-    /// that install's own `etc/gitconfig`, invisible to this bundled
-    /// copy's separate one. `GIT_CONFIG_SYSTEM` (Git >= 2.32, long since
-    /// true for both Git for Windows and MSYS2's git package) points
-    /// this bundled git at that file directly instead of duplicating its
-    /// contents. The credential helper it names (e.g. `manager`) is a
-    /// bare executable name git resolves via PATH - `git-credential-
-    /// manager(.exe)` lives under that system install's `mingw64\bin\`
-    /// or `cmd\`, neither of which is otherwise on this bundled
-    /// session's PATH, hence adding both here too.
+    /// *System*-level config - most importantly `credential.helper`
+    /// (GitHub/GitLab/etc. sign-in), which the Git for Windows
+    /// installer/Git Credential Manager setup writes into that install's
+    /// own `etc/gitconfig` - doesn't carry over to this bundled copy's
+    /// separate one on its own. `GIT_CONFIG_SYSTEM` (Git >= 2.32, long
+    /// since true for both Git for Windows and MSYS2's git package)
+    /// points this bundled git at that file directly instead of
+    /// duplicating its contents. The credential helper it names (e.g.
+    /// `manager`) is a bare executable name git resolves via PATH -
+    /// `git-credential-manager(.exe)` lives under that system install's
+    /// `mingw64\bin\` or `cmd\`, neither of which is otherwise on this
+    /// bundled session's PATH, hence adding both here too.
+    ///
+    /// *Global* config (`user.name`/`user.email`, etc.) needs the same
+    /// treatment, for a reason that's easy to get wrong: it is NOT
+    /// enough to just point this bundled session's `HOME` at the
+    /// Windows user profile (see launch_branded_mintty) and assume that
+    /// resolves to the same `~/.gitconfig` a system Git for Windows
+    /// reads - on some machines (e.g. a domain-joined profile where
+    /// `HOMEDRIVE`/`HOMEPATH` diverges from `USERPROFILE`) it doesn't,
+    /// and this bundled git then silently starts from a blank global
+    /// config instead. Rather than reverse-engineer whichever HOME
+    /// variable a real Git for Windows install actually resolves to,
+    /// `system_global_gitconfig` just asks its own `git.exe` directly
+    /// (`config --global --list --show-origin`) and bridges that exact
+    /// file via `GIT_CONFIG_GLOBAL`, sidestepping the question entirely.
     fn git_bridge_script() -> String {
         let Some(system_root) = find_system_git_install() else {
             return "# No system Git for Windows install found - nothing to bridge.\n".to_string();
         };
+
+        let global_config_export = match system_global_gitconfig(&system_root) {
+            Some(path) => format!("export GIT_CONFIG_GLOBAL='{}'\n", to_posix_path(&path)),
+            None => String::new(),
+        };
+
         format!(
             "# Patou bash git config bridge - sourced automatically by every\n\
              # login shell in this bundled MSYS2 install via /etc/profile.\n\
@@ -332,10 +348,10 @@ esac
              # install found at {system_root_display} - see the git_bridge_script\n\
              # doc comment in patou-bash's own source for why.\n\
              \n\
-             export GIT_CONFIG_SYSTEM='{config}'\n\
-             export PATH=\"{bin1}:{bin2}:$PATH\"\n",
+             export GIT_CONFIG_SYSTEM='{system_config}'\n\
+             {global_config_export}export PATH=\"{bin1}:{bin2}:$PATH\"\n",
             system_root_display = system_root.display(),
-            config = to_posix_path(&system_gitconfig(&system_root)),
+            system_config = to_posix_path(&system_gitconfig(&system_root)),
             bin1 = to_posix_path(&system_root.join("mingw64").join("bin")),
             bin2 = to_posix_path(&system_root.join("cmd")),
         )
@@ -348,6 +364,42 @@ esac
     /// (which patou never writes to).
     fn system_gitconfig(system_root: &Path) -> PathBuf {
         system_root.join("etc").join("gitconfig")
+    }
+
+    /// One of a system Git for Windows install's own `git.exe` binaries
+    /// (there are several - `cmd\git.exe` and `bin\git.exe` are thin
+    /// shims, `mingw64\bin\git.exe` is the real one - any of them
+    /// resolves config identically) - used to ask it directly where its
+    /// global config lives, rather than assuming this bundled copy's own
+    /// `HOME`-based resolution lands on the same file.
+    fn system_git_exe(system_root: &Path) -> Option<PathBuf> {
+        [
+            system_root.join("cmd").join("git.exe"),
+            system_root.join("bin").join("git.exe"),
+            system_root.join("mingw64").join("bin").join("git.exe"),
+        ]
+        .into_iter()
+        .find(|candidate| candidate.is_file())
+    }
+
+    /// Runs a system Git for Windows install's own `git.exe` and reads
+    /// back exactly which file it resolved its global config to
+    /// (`--show-origin` prints a `file:<path>` prefix on each line) -
+    /// see the reasoning in `git_bridge_script`'s doc comment for why
+    /// this asks git itself instead of recomputing the path. `None` if
+    /// no `git.exe` was found, the command failed, it printed nothing
+    /// (no global config set at all), or the file it named doesn't
+    /// actually exist.
+    fn system_global_gitconfig(system_root: &Path) -> Option<PathBuf> {
+        let git_exe = system_git_exe(system_root)?;
+        let output = Command::new(git_exe)
+            .args(["config", "--global", "--list", "--show-origin"])
+            .output()
+            .ok()?;
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let origin = stdout.lines().next()?.split('\t').next()?;
+        let path = PathBuf::from(origin.strip_prefix("file:")?);
+        path.is_file().then_some(path)
     }
 
     fn banner_script(install_dir: &Path) -> String {
