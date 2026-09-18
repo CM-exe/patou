@@ -31,6 +31,23 @@
 ' ERROR <reason> (also untouched). The caller reads that line to decide
 ' what to tell the user.
 
+' VBScript's own Trim/LTrim/RTrim only strip space characters (Chr(32)),
+' not tabs or line breaks - so `Trim(x) = ""` never recognizes a run of
+' just "\r\n" (e.g. a freshly-emptied JSON object's inner content, or a
+' settings.json that's merely blank) as blank. Used everywhere this
+' script needs a real "is this just whitespace" check instead.
+Function IsBlank(s)
+    Dim i, ch
+    For i = 1 To Len(s)
+        ch = Mid(s, i, 1)
+        If ch <> " " And ch <> vbTab And ch <> vbCr And ch <> vbLf Then
+            IsBlank = False
+            Exit Function
+        End If
+    Next
+    IsBlank = True
+End Function
+
 Function JsonEscape(s)
     s = Replace(s, "\", "\\")
     s = Replace(s, Chr(34), "\" & Chr(34))
@@ -205,7 +222,7 @@ Dim content
 content = ReadSettings(settingsPath)
 
 If mode = "remove" Then
-    If Trim(content) = "" Or InStr(content, q & "Patou Bash" & q) = 0 Then
+    If IsBlank(content) Or InStr(content, q & "Patou Bash" & q) = 0 Then
         WScript.Echo "SKIP"
         WScript.Quit 0
     End If
@@ -233,7 +250,7 @@ If mode = "remove" Then
         profilesBracePos = InStr(profilesKeyPos, content, "{")
         If profilesBracePos > 0 Then
             profilesEnd = FindMatchingBrace(content, profilesBracePos)
-            If profilesEnd > 0 And Trim(Mid(content, profilesBracePos + 1, profilesEnd - profilesBracePos - 1)) = "" Then
+            If profilesEnd > 0 And IsBlank(Mid(content, profilesBracePos + 1, profilesEnd - profilesBracePos - 1)) Then
                 content = RemoveEntryAt(content, profilesKeyPos, profilesBracePos, ok)
             End If
         End If
@@ -254,7 +271,7 @@ If bashPath = "" Then
     WScript.Quit 1
 End If
 
-If Trim(content) = "" Then
+If IsBlank(content) Then
     content = "{}"
 End If
 
