@@ -103,6 +103,19 @@ place of Git Bash's default yellow/green palette. Inside a Git repo, the
 prompt also shows the current branch next to the path — white normally,
 or light blue if that repo has a `.patou/` directory too.
 
+If a system-wide Git for Windows is also installed, the bundled bash
+session shares its config with it rather than starting from a blank
+slate: `user.name`/`user.email` (and anything else set with `git config
+--global`) already carry over automatically, since both resolve their
+global `~/.gitconfig` from the same Windows user profile directory. On
+top of that, patou-bash also points the bundled git at that install's
+own *system*-level config (`GIT_CONFIG_SYSTEM`) and adds its
+`mingw64\bin\`/`cmd\` to `PATH`, so `credential.helper` (GitHub/GitLab
+sign-in via Git Credential Manager, typically configured there rather
+than in the global config) works the same way it does in your regular
+Git Bash, instead of needing a separate sign-in just for this bundled
+copy.
+
 If the bundled MSYS2 install is ever missing (setup failed, or
 `patou-bash.exe` run from somewhere else entirely), it falls back to
 looking for a *system-wide Git for Windows* install instead of doing

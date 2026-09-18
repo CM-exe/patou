@@ -275,6 +275,7 @@ esac
         fs::create_dir_all(&profile_d)?;
         fs::write(profile_d.join("patou-banner.sh"), banner_script(install_dir))?;
         fs::write(profile_d.join("patou-prompt.sh"), PROMPT_SCRIPT)?;
+        fs::write(profile_d.join("patou-git-bridge.sh"), git_bridge_script())?;
 
         fs::write(
             git_root.join("etc").join("minttyrc"),
@@ -286,6 +287,67 @@ esac
             ),
         )?;
         Ok(())
+    }
+
+    /// Bridges this private bundled git to a *system* Git for Windows
+    /// install's own system-level config, if one is found (the same
+    /// search `find_system_git_install` does for the no-bundled-copy
+    /// fallback, reused here for a bundled copy that's very much
+    /// present) - written as another `/etc/profile.d` script so it
+    /// applies to every login shell in this bundled MSYS2 the same way
+    /// patou-banner.sh/patou-prompt.sh do, which covers both the
+    /// standalone mintty window (launch_branded_mintty) and the VS Code
+    /// integrated-terminal profile (Add-VsCodeTerminalProfile in
+    /// scripts/install.ps1) without either needing its own copy of this
+    /// logic - both ultimately run `bash --login`, which sources
+    /// /etc/profile -> /etc/profile.d.
+    ///
+    /// `user.name`/`user.email` already carry over on their own: this
+    /// bundled session's `HOME` is already pointed at the Windows user
+    /// profile (see launch_branded_mintty), the exact same file a system
+    /// Git for Windows resolves its own global `~/.gitconfig` from. What
+    /// doesn't carry over is *system*-level config - most importantly
+    /// `credential.helper` (GitHub/GitLab/etc. sign-in), which the Git
+    /// for Windows installer/Git Credential Manager setup writes into
+    /// that install's own `etc/gitconfig`, invisible to this bundled
+    /// copy's separate one. `GIT_CONFIG_SYSTEM` (Git >= 2.32, long since
+    /// true for both Git for Windows and MSYS2's git package) points
+    /// this bundled git at that file directly instead of duplicating its
+    /// contents. The credential helper it names (e.g. `manager`) is a
+    /// bare executable name git resolves via PATH - `git-credential-
+    /// manager(.exe)` lives under that system install's `mingw64\bin\`
+    /// or `cmd\`, neither of which is otherwise on this bundled
+    /// session's PATH, hence adding both here too.
+    fn git_bridge_script() -> String {
+        let Some(system_root) = find_system_git_install() else {
+            return "# No system Git for Windows install found - nothing to bridge.\n".to_string();
+        };
+        format!(
+            "# Patou bash git config bridge - sourced automatically by every\n\
+             # login shell in this bundled MSYS2 install via /etc/profile.\n\
+             # Written by patou-bash.exe on each launch; scripts/uninstall.ps1\n\
+             # and scripts/uninstall.cmd remove the whole bundled msys64\\ folder.\n\
+             #\n\
+             # Bridges this private git install to the system Git for Windows\n\
+             # install found at {system_root_display} - see the git_bridge_script\n\
+             # doc comment in patou-bash's own source for why.\n\
+             \n\
+             export GIT_CONFIG_SYSTEM='{config}'\n\
+             export PATH=\"{bin1}:{bin2}:$PATH\"\n",
+            system_root_display = system_root.display(),
+            config = to_posix_path(&system_gitconfig(&system_root)),
+            bin1 = to_posix_path(&system_root.join("mingw64").join("bin")),
+            bin2 = to_posix_path(&system_root.join("cmd")),
+        )
+    }
+
+    /// The system-level config file a system Git for Windows install's
+    /// own `git config --system` edits - where its installer/Git
+    /// Credential Manager setup writes `credential.helper`, distinct
+    /// from this project's own bundled copy's separate `etc/gitconfig`
+    /// (which patou never writes to).
+    fn system_gitconfig(system_root: &Path) -> PathBuf {
+        system_root.join("etc").join("gitconfig")
     }
 
     fn banner_script(install_dir: &Path) -> String {
