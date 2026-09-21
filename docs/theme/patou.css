@@ -1,5 +1,52 @@
 /* Small brand icon next to the book title in the top menu bar, reusing
    the favicon mdBook already copies to the output root. */
+:root {
+    --patou-navy: #1b1e26;
+    --patou-text: #2b2f38;
+    --patou-muted: #5c6370;
+    --patou-blue: #3b6ea5;
+    --patou-light-blue: #7ecbff;
+    --patou-code-text: #c8d3e0;
+}
+
+body {
+    background: #f3f6fa;
+    color: var(--patou-text);
+}
+
+#sidebar {
+    background: var(--patou-navy);
+    color: var(--patou-code-text);
+}
+
+#sidebar .chapter li a {
+    color: var(--patou-code-text);
+}
+
+#sidebar .chapter li a:hover,
+#sidebar .chapter li a.active {
+    color: var(--patou-light-blue);
+}
+
+a,
+.content a {
+    color: var(--patou-blue);
+}
+
+pre,
+pre code {
+    background: var(--patou-navy);
+    color: var(--patou-code-text);
+}
+
+pre {
+    border: 1px solid #3b6ea5;
+}
+
+code {
+    color: #4a7fb5;
+}
+
 .menu-title {
     display: inline-flex;
     align-items: center;
