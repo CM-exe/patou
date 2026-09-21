@@ -291,6 +291,7 @@ esac
         fs::write(profile_d.join("patou-banner.sh"), banner_script(install_dir))?;
         fs::write(profile_d.join("patou-prompt.sh"), PROMPT_SCRIPT)?;
         fs::write(profile_d.join("patou-git-bridge.sh"), git_bridge_script())?;
+        ensure_vi_alias(git_root)?;
 
         fs::write(
             git_root.join("etc").join("minttyrc"),
@@ -379,6 +380,39 @@ esac
     /// (which patou never writes to).
     fn system_gitconfig(system_root: &Path) -> PathBuf {
         system_root.join("etc").join("gitconfig")
+    }
+
+    /// Where the bundled MSYS2's `vim` package (installed by
+    /// msys2-bundle.yml) puts its binary - used both to decide whether
+    /// `ensure_vi_alias` has anything to point at (an older bundle
+    /// predating that package addition won't have it) and as the actual
+    /// target of the `vi` wrapper it writes.
+    fn vim_exe(git_root: &Path) -> PathBuf {
+        git_root.join("usr").join("bin").join("vim.exe")
+    }
+
+    /// Writes a plain `vi` -> `vim` wrapper into this bundle (`exec vim
+    /// "$@"`) - standalone MSYS2's `git` package ships no editor at all,
+    /// so without this, anything that invokes `vi` by name (git's own
+    /// hardcoded editor fallback included, once nothing else is
+    /// configured) fails outright: "error: cannot spawn vi: No such file
+    /// or directory". Written the same unremarkable way
+    /// `.patou/hooks/commit-msg` already is elsewhere in this project
+    /// (`fs::write`, no chmod/exec-bit handling) - MSYS treats a
+    /// shebang'd file as invocable regardless of any Windows-level
+    /// "executable" attribute, the same thing that already makes that
+    /// hook work with no chmod call on Windows. Skipped if `vim.exe`
+    /// isn't in this bundle, and never overwrites a `vi` that already
+    /// exists (e.g. a future bundle that ships a real one).
+    fn ensure_vi_alias(git_root: &Path) -> io::Result<()> {
+        if !vim_exe(git_root).is_file() {
+            return Ok(());
+        }
+        let vi_path = git_root.join("usr").join("bin").join("vi");
+        if vi_path.is_file() {
+            return Ok(());
+        }
+        fs::write(vi_path, "#!/bin/sh\nexec vim \"$@\"\n")
     }
 
     /// One of a system Git for Windows install's own `git.exe` binaries
