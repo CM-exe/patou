@@ -103,6 +103,62 @@ fn init_without_branch_flag_has_no_branch_config_or_hook() {
 }
 
 #[test]
+fn init_branch_on_existing_config_prompts_and_skips_by_default() {
+    let repo = init_git_repo();
+    patou(repo.path()).arg("init").assert().success();
+
+    // No answer piped in -> defaults to "no" rather than adding anything.
+    patou(repo.path())
+        .args(["init", "-b"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("missing the [branch] rule"));
+
+    assert!(!repo.path().join(".patou/hooks/pre-commit").exists());
+    let config = fs::read_to_string(repo.path().join(".patou/config.toml")).unwrap();
+    assert!(!config.contains("[branch]"));
+}
+
+#[test]
+fn init_branch_on_existing_config_adds_section_when_confirmed() {
+    let repo = init_git_repo();
+    patou(repo.path()).arg("init").assert().success();
+
+    patou(repo.path())
+        .args(["init", "-b"])
+        .write_stdin("y\n")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("added [branch] rule"));
+
+    assert!(repo.path().join(".patou/hooks/pre-commit").is_file());
+    let config = fs::read_to_string(repo.path().join(".patou/config.toml")).unwrap();
+    assert!(config.contains("[branch]"));
+    // The pre-existing [commit] rule must be untouched, not duplicated.
+    assert_eq!(config.matches("[commit]").count(), 1);
+}
+
+#[test]
+fn init_offers_to_restore_a_missing_commit_section() {
+    let repo = init_git_repo();
+    patou(repo.path()).arg("init").assert().success();
+
+    // Simulate a hand-edited config.toml that dropped [commit] entirely.
+    fs::write(repo.path().join(".patou/config.toml"), "# empty config\n").unwrap();
+
+    patou(repo.path())
+        .arg("init")
+        .write_stdin("y\n")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("missing the [commit] rule"))
+        .stdout(predicate::str::contains("added [commit] rule"));
+
+    let config = fs::read_to_string(repo.path().join(".patou/config.toml")).unwrap();
+    assert!(config.contains("[commit]"));
+}
+
+#[test]
 fn init_is_idempotent() {
     let repo = init_git_repo();
 

@@ -31,7 +31,10 @@ pub fn repo_root() -> io::Result<PathBuf> {
 #[cfg(windows)]
 fn native_path(path: String) -> String {
     let bytes = path.as_bytes();
-    let is_msys_path = bytes.len() >= 2 && bytes[0] == b'/' && bytes[1].is_ascii_alphabetic() && (bytes.len() == 2 || bytes[2] == b'/');
+    let is_msys_path = bytes.len() >= 2
+        && bytes[0] == b'/'
+        && bytes[1].is_ascii_alphabetic()
+        && (bytes.len() == 2 || bytes[2] == b'/');
     if !is_msys_path {
         return path;
     }

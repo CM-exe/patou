@@ -1,14 +1,17 @@
 use std::fs;
 use std::io;
+use std::io::Write as _;
 use std::path::Path;
 
 use crate::git;
 
-const DEFAULT_CONFIG: &str = r#"# Patou configuration
+const CONFIG_HEADER: &str = r#"# Patou configuration
 # Rules defined here are versioned with the repository, so every
 # contributor validates commits the same way.
 
-[commit]
+"#;
+
+const COMMIT_CONFIG: &str = r#"[commit]
 # Conventional Commits style: type(scope): subject
 # Single-quoted (TOML literal string) so the regex needs no escaping and
 # the commit-msg hook (plain shell) and `patou check` read the exact same
@@ -16,11 +19,11 @@ const DEFAULT_CONFIG: &str = r#"# Patou configuration
 pattern = '^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([a-z0-9-]+\))?: .{1,72}$'
 "#;
 
-// Appended to DEFAULT_CONFIG (only when `patou init -b/--branch` is used).
-// Same single-quoted-literal-string reasoning as [commit].pattern above -
-// this exact pattern is also read by the pre-commit hook's grep -E.
-const DEFAULT_BRANCH_CONFIG: &str = r#"
-[branch]
+// Only added when `patou init -b/--branch` is used (or accepted later via
+// the "config.toml is missing the [branch] rule" prompt, see `ensure_config`
+// below). Same single-quoted-literal-string reasoning as [commit].pattern
+// above - this exact pattern is also read by the pre-commit hook's grep -E.
+const BRANCH_CONFIG: &str = r#"[branch]
 # Branch naming convention, enforced by the pre-commit hook on every commit.
 # Defaults: `main`; `develop`/`dev` (drop these two if your workflow has no
 # long-lived integration branch); and `<type>/<description>` for
@@ -134,18 +137,13 @@ pub fn run(branch: bool) -> io::Result<()> {
     hide_on_windows(&patou_dir);
 
     let config_path = patou_dir.join("config.toml");
-    let config_contents = if branch {
-        format!("{DEFAULT_CONFIG}{DEFAULT_BRANCH_CONFIG}")
-    } else {
-        DEFAULT_CONFIG.to_string()
-    };
-    write_if_absent(&config_path, &config_contents)?;
+    let has_branch = ensure_config(&config_path, branch)?;
 
     let hook_path = hooks_dir.join("commit-msg");
     write_if_absent(&hook_path, COMMIT_MSG_HOOK)?;
     make_executable(&hook_path)?;
 
-    if branch {
+    if has_branch {
         let pre_commit_hook_path = hooks_dir.join("pre-commit");
         write_if_absent(&pre_commit_hook_path, PRE_COMMIT_HOOK)?;
         make_executable(&pre_commit_hook_path)?;
@@ -166,7 +164,7 @@ pub fn run(branch: bool) -> io::Result<()> {
     println!("Initialized Patou in {}", repo_root.display());
     println!("  .patou/config.toml");
     println!("  .patou/hooks/commit-msg");
-    if branch {
+    if has_branch {
         println!("  .patou/hooks/pre-commit (branch naming rule)");
     }
     println!("  .patou/install (Linux/macOS/Git Bash)");
@@ -188,6 +186,79 @@ fn write_if_absent(path: &Path, contents: &str) -> io::Result<()> {
         return Ok(());
     }
     fs::write(path, contents)
+}
+
+// Makes sure config.toml has every rule section this invocation wants:
+// [commit] unconditionally (it's the baseline rule every `init` has always
+// written), and [branch] when `want_branch` is true. A brand-new file just
+// gets written with everything it needs, same as before. An *existing* file
+// is never silently rewritten (`init` staying idempotent matters more here
+// than ever, since this file is meant to hold hand-edited rules) - instead,
+// for each wanted section missing from it, the user is asked whether to
+// append the default block, e.g. so a repo that ran plain `init` earlier
+// and now runs `init -b` gets offered the [branch] section it's missing
+// rather than silently staying without one.
+//
+// Returns whether [branch] ends up present (already there, or just added),
+// which is what decides whether the pre-commit hook gets written below.
+fn ensure_config(config_path: &Path, want_branch: bool) -> io::Result<bool> {
+    if !config_path.exists() {
+        let mut contents = format!("{CONFIG_HEADER}{COMMIT_CONFIG}");
+        if want_branch {
+            contents.push('\n');
+            contents.push_str(BRANCH_CONFIG);
+        }
+        fs::write(config_path, contents)?;
+        return Ok(want_branch);
+    }
+
+    println!("  skipped {} (already exists)", config_path.display());
+    let existing = fs::read_to_string(config_path)?;
+    let mut has_branch = has_section(&existing, "[branch]");
+
+    if !has_section(&existing, "[commit]")
+        && prompt_yes_no(
+            "  config.toml is missing the [commit] rule - add the default commit message pattern?",
+        )
+    {
+        append_section(config_path, "commit", COMMIT_CONFIG)?;
+    }
+
+    if want_branch
+        && !has_branch
+        && prompt_yes_no(
+            "  config.toml is missing the [branch] rule - add the default branch naming pattern?",
+        )
+    {
+        append_section(config_path, "branch", BRANCH_CONFIG)?;
+        has_branch = true;
+    }
+
+    Ok(has_branch)
+}
+
+fn has_section(config_contents: &str, marker: &str) -> bool {
+    config_contents.lines().any(|line| line.trim() == marker)
+}
+
+fn append_section(config_path: &Path, name: &str, block: &str) -> io::Result<()> {
+    let mut file = fs::OpenOptions::new().append(true).open(config_path)?;
+    write!(file, "\n{block}")?;
+    println!("  added [{name}] rule to {}", config_path.display());
+    Ok(())
+}
+
+// Reads a y/n answer from stdin. Missing/unreadable input (piped-empty
+// stdin, EOF) defaults to "no" rather than blocking or assuming consent.
+fn prompt_yes_no(question: &str) -> bool {
+    print!("{question} [y/N] ");
+    let _ = io::stdout().flush();
+
+    let mut answer = String::new();
+    if io::stdin().read_line(&mut answer).unwrap_or(0) == 0 {
+        return false;
+    }
+    matches!(answer.trim().to_lowercase().as_str(), "y" | "yes")
 }
 
 // A leading "." already keeps `.patou/` out of `ls`/Finder by convention on
