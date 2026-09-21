@@ -136,6 +136,58 @@ fn check_ignores_comment_and_blank_lines_before_the_subject() {
 }
 
 #[test]
+fn check_raw_accepts_a_single_quoted_argument() {
+    let repo = init_git_repo();
+    patou(repo.path()).arg("init").assert().success();
+
+    patou(repo.path())
+        .args(["check", "-r", "feat(cli): add raw option"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("commit message OK"));
+}
+
+#[test]
+fn check_raw_joins_unquoted_words_into_one_message() {
+    let repo = init_git_repo();
+    patou(repo.path()).arg("init").assert().success();
+
+    patou(repo.path())
+        .args(["check", "--raw", "feat:", "add", "raw", "option"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("commit message OK"));
+}
+
+#[test]
+fn check_raw_rejects_non_conventional_commit_message() {
+    let repo = init_git_repo();
+    patou(repo.path()).arg("init").assert().success();
+
+    patou(repo.path())
+        .args(["check", "-r", "added stuff"])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("commit message rejected"));
+}
+
+#[test]
+fn check_rejects_message_file_and_raw_together() {
+    let repo = init_git_repo();
+    patou(repo.path()).arg("init").assert().success();
+
+    let msg = write_message(repo.path(), "msg.txt", "feat(cli): add raw option\n");
+
+    patou(repo.path())
+        .arg("check")
+        .arg(&msg)
+        .args(["-r", "feat(cli): add raw option"])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("cannot be used with"));
+}
+
+#[test]
 fn check_without_message_file_skips_the_commit_rule() {
     let repo = init_git_repo();
     patou(repo.path()).arg("init").assert().success();

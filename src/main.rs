@@ -21,7 +21,14 @@ enum Commands {
     /// Validate a commit against the project's rules
     Check {
         /// Path to the commit message file, as passed by the commit-msg hook
+        #[arg(conflicts_with = "raw")]
         message_file: Option<PathBuf>,
+
+        /// Check this literal message instead of a file - everything after
+        /// -r/--raw is taken as the message, quoted or not (e.g.
+        /// `patou check -r "feat: add x"` or `patou check -r feat: add x`)
+        #[arg(short, long, num_args = 1.., value_name = "MESSAGE", allow_hyphen_values = true)]
+        raw: Option<Vec<String>>,
     },
 }
 
@@ -37,7 +44,7 @@ fn main() -> ExitCode {
     let result = match command {
         Commands::Init => commands::init::run().map(|_| true),
         Commands::Install => commands::install::run(),
-        Commands::Check { message_file } => commands::check::run(message_file),
+        Commands::Check { message_file, raw } => commands::check::run(message_file, raw),
     };
 
     match result {

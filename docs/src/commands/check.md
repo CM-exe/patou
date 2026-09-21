@@ -2,6 +2,7 @@
 
 ```bash
 patou check [message-file]
+patou check -r|--raw <message>...
 ```
 
 Validates a commit message against the `[commit]` rule in
@@ -10,6 +11,11 @@ Validates a commit message against the `[commit]` rule in
 - `message-file` — path to a file containing the commit message, in the
   same format Git passes to a `commit-msg` hook (the first argument,
   `$1`). Optional.
+- `-r`/`--raw <message>...` — check a literal message instead of a file.
+  Everything after `-r`/`--raw` is taken as the message: pass it quoted
+  as one argument (`patou check -r "feat: add x"`) or unquoted as
+  several, which get joined back into one message with spaces
+  (`patou check -r feat: add x`). Mutually exclusive with `message-file`.
 
 ## Exit behavior
 
@@ -38,5 +44,10 @@ Validates a commit message against the `[commit]` rule in
 ```bash
 echo "fix(parser): handle empty input" > msg.txt
 patou check msg.txt
+# commit message OK
+```
+
+```bash
+patou check -r "fix(parser): handle empty input"
 # commit message OK
 ```
