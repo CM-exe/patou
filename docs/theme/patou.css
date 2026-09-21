@@ -69,8 +69,6 @@ body {
     font-family: "Google Sans", sans-serif;
 }
 
-code,
-pre,
-.hljs {
-    font-family: "Google Sans Code", monospace;
+:root {
+    --mono-font: "Google Sans Code", monospace;
 }
