@@ -20,6 +20,15 @@ enum Commands {
         /// that enforces it)
         #[arg(short, long)]
         branch: bool,
+
+        /// Also add the default tag naming rule (and the pre-push hook that
+        /// enforces it)
+        #[arg(short, long)]
+        tag: bool,
+
+        /// Add every default rule (equivalent to -b -t)
+        #[arg(short, long)]
+        all: bool,
     },
     /// Activate Patou for an existing repository (link the githooks)
     Install,
@@ -47,7 +56,9 @@ fn main() -> ExitCode {
     };
 
     let result = match command {
-        Commands::Init { branch } => commands::init::run(branch).map(|_| true),
+        Commands::Init { branch, tag, all } => {
+            commands::init::run(branch || all, tag || all).map(|_| true)
+        }
         Commands::Install => commands::install::run(),
         Commands::Check { message_file, raw } => commands::check::run(message_file, raw),
     };

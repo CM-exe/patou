@@ -8,6 +8,11 @@ patou check -r|--raw <message>...
 Validates a commit message against the `[commit]` rule in
 `.patou/config.toml`.
 
+> `patou check` only covers `[commit]`. The `[branch]` and `[tag]` rules
+> (added by `patou init -b`/`-t`/`-a`, see [Configuration](../configuration.md))
+> have no `patou check` equivalent — they're validated only by their own
+> hook (`pre-commit`/`pre-push` respectively).
+
 - `message-file` — path to a file containing the commit message, in the
   same format Git passes to a `commit-msg` hook (the first argument,
   `$1`). Optional.

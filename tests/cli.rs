@@ -103,6 +103,49 @@ fn init_without_branch_flag_has_no_branch_config_or_hook() {
 }
 
 #[test]
+fn init_tag_adds_tag_config_and_pre_push_hook() {
+    let repo = init_git_repo();
+
+    patou(repo.path()).args(["init", "-t"]).assert().success();
+
+    for path in [".patou/config.toml", ".patou/hooks/pre-push"] {
+        assert!(repo.path().join(path).is_file(), "missing {path}");
+    }
+
+    let config = fs::read_to_string(repo.path().join(".patou/config.toml")).unwrap();
+    assert!(
+        config.contains("[tag]"),
+        "config.toml missing [tag] section"
+    );
+}
+
+#[test]
+fn init_without_tag_flag_has_no_tag_config_or_hook() {
+    let repo = init_git_repo();
+
+    patou(repo.path()).arg("init").assert().success();
+
+    assert!(!repo.path().join(".patou/hooks/pre-push").exists());
+    let config = fs::read_to_string(repo.path().join(".patou/config.toml")).unwrap();
+    assert!(!config.contains("[tag]"));
+}
+
+#[test]
+fn init_all_adds_branch_and_tag_configs_and_hooks() {
+    let repo = init_git_repo();
+
+    patou(repo.path()).args(["init", "-a"]).assert().success();
+
+    for path in [".patou/hooks/pre-commit", ".patou/hooks/pre-push"] {
+        assert!(repo.path().join(path).is_file(), "missing {path}");
+    }
+
+    let config = fs::read_to_string(repo.path().join(".patou/config.toml")).unwrap();
+    assert!(config.contains("[branch]"));
+    assert!(config.contains("[tag]"));
+}
+
+#[test]
 fn init_branch_on_existing_config_prompts_and_skips_by_default() {
     let repo = init_git_repo();
     patou(repo.path()).arg("init").assert().success();
@@ -135,6 +178,40 @@ fn init_branch_on_existing_config_adds_section_when_confirmed() {
     let config = fs::read_to_string(repo.path().join(".patou/config.toml")).unwrap();
     assert!(config.contains("[branch]"));
     // The pre-existing [commit] rule must be untouched, not duplicated.
+    assert_eq!(config.matches("[commit]").count(), 1);
+}
+
+#[test]
+fn init_tag_on_existing_config_prompts_and_skips_by_default() {
+    let repo = init_git_repo();
+    patou(repo.path()).arg("init").assert().success();
+
+    patou(repo.path())
+        .args(["init", "-t"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("missing the [tag] rule"));
+
+    assert!(!repo.path().join(".patou/hooks/pre-push").exists());
+    let config = fs::read_to_string(repo.path().join(".patou/config.toml")).unwrap();
+    assert!(!config.contains("[tag]"));
+}
+
+#[test]
+fn init_tag_on_existing_config_adds_section_when_confirmed() {
+    let repo = init_git_repo();
+    patou(repo.path()).arg("init").assert().success();
+
+    patou(repo.path())
+        .args(["init", "-t"])
+        .write_stdin("y\n")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("added [tag] rule"));
+
+    assert!(repo.path().join(".patou/hooks/pre-push").is_file());
+    let config = fs::read_to_string(repo.path().join(".patou/config.toml")).unwrap();
+    assert!(config.contains("[tag]"));
     assert_eq!(config.matches("[commit]").count(), 1);
 }
 
@@ -421,5 +498,42 @@ fn pre_commit_hook_enforces_branch_naming_without_a_global_patou_install() {
         String::from_utf8_lossy(&log.stdout).lines().count(),
         1,
         "only the commit on the conventional branch name should have gone through"
+    );
+}
+
+/// Same guarantee as commit_msg_hook_enforces_rules_without_a_global_patou_install,
+/// but for the [tag] rule's pre-push hook - git has no local tag-creation
+/// hook, so this has to push to a real (local, bare) remote to observe it.
+#[test]
+fn pre_push_hook_enforces_tag_naming_without_a_global_patou_install() {
+    let repo = init_git_repo();
+    patou(repo.path()).args(["init", "-t"]).assert().success();
+
+    let remote = TempDir::new().expect("failed to create temp dir");
+    let status = git(remote.path(), &["init", "--bare", "-q"]).status;
+    assert!(status.success(), "git init --bare failed");
+    git(
+        repo.path(),
+        &["remote", "add", "origin", remote.path().to_str().unwrap()],
+    );
+
+    fs::write(repo.path().join("file.txt"), "hello\n").unwrap();
+    git(repo.path(), &["add", "file.txt"]);
+    let commit = git(repo.path(), &["commit", "-m", "feat: add file"]);
+    assert!(commit.status.success(), "commit failed");
+
+    git(repo.path(), &["tag", "not-a-valid-tag"]);
+    let bad = git(repo.path(), &["push", "origin", "not-a-valid-tag"]);
+    assert!(
+        !bad.status.success(),
+        "expected the push of a non-conventional tag to be rejected by the hook"
+    );
+
+    git(repo.path(), &["tag", "v1.2.3"]);
+    let good = git(repo.path(), &["push", "origin", "v1.2.3"]);
+    assert!(
+        good.status.success(),
+        "expected the push of a conventional tag to succeed: {}",
+        String::from_utf8_lossy(&good.stderr)
     );
 }

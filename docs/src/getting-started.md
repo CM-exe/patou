@@ -76,3 +76,20 @@ If you have `patou` installed, you can validate any message file directly
 echo "feat: my change" > msg.txt
 patou check msg.txt
 ```
+
+## Also enforcing branch and tag naming
+
+`patou init` only sets up commit-message linting by default. To add
+branch and/or tag naming rules too:
+
+```bash
+patou init -b   # branch naming, enforced on every commit
+patou init -t   # tag naming, enforced when tags are pushed
+patou init -a   # both at once
+```
+
+These flags can be combined with a later `patou init` too — if
+`config.toml` already exists, you're prompted before anything gets added
+to it. See [Configuration](./configuration.md) and
+[`patou init`](./commands/init.md) for the default patterns and what each
+flag adds.

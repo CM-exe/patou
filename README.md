@@ -4,6 +4,8 @@
 
 # Patou
 
+[![GitHub release](https://img.shields.io/github/v/release/CM-exe/patou)](https://github.com/CM-exe/patou/releases)
+
 </div>
 
 A lightweight, self-contained Git quality tool built in Rust. Patou embeds version-controlled commit rules and pre-commit validation directly into your repository—no global installation, Node.js, or project-specific dependencies required.
@@ -37,7 +39,9 @@ install methods, uninstalling, configuration, and how the hooks work.
 
 ```bash
 patou init
+
 patou install
+
 patou check
 ```
 
@@ -47,7 +51,7 @@ patou check
 
 ### Git Hooks
 
- - [ ] Support common Git hooks (pre-commit, commit-msg, pre-push, etc.)
+ - [X] Support common Git hooks (pre-commit, commit-msg, pre-push, etc.)
  - [X] Make hook installation simple and reliable
  - [ ] Support custom hook scripts
  - [ ] Support multiple commands per hook
@@ -56,8 +60,8 @@ patou check
 
 ### Conventions & Rules
 
- - [ ] Add configurable branch naming rules
- - [ ] Add configurable tag naming rules
+ - [X] Add configurable branch naming rules
+ - [X] Add configurable tag naming rules
  - [X] Add configurable commit message rules
  - [ ] Add configurable file/path rules
  - [ ] Add configurable commit/push policies
@@ -88,3 +92,19 @@ patou check
  - [X] Provide easy installation methods
  - [X] Automate releases
  - [X] Add CI for builds and tests
+
+--
+
+## Uninstall
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/CM-exe/patou/main/scripts/uninstall.sh | sh
+```
+
+```powershell
+irm https://raw.githubusercontent.com/CM-exe/patou/main/scripts/uninstall.ps1 | iex
+```
+
+```cmd
+curl -fsSL https://raw.githubusercontent.com/CM-exe/patou/main/scripts/uninstall.cmd -o uninstall.cmd && uninstall.cmd
+```

@@ -31,6 +31,19 @@ const BRANCH_CONFIG: &str = r#"[branch]
 pattern = '^(main|develop|dev|(feature|fix|hotfix|refactor|chore|docs)/[a-zA-Z0-9._/-]+)$'
 "#;
 
+// Only added when `patou init -t/--tag` is used (or accepted later via the
+// "config.toml is missing the [tag] rule" prompt). Same
+// single-quoted-literal-string reasoning as [commit].pattern above - this
+// exact pattern is also read by the pre-push hook's grep -E.
+const TAG_CONFIG: &str = r#"[tag]
+# Tag naming convention, enforced by the pre-push hook when tags are pushed
+# (git has no hook that fires on local tag creation - only pre-push sees
+# the refs, tags included, before they leave the machine).
+# Defaults: semantic version tags `v<MAJOR>.<MINOR>.<PATCH>` (e.g. v1.4.0),
+# and `<type>/<description>` for build/deploy/release tags.
+pattern = '^(v[0-9]+\.[0-9]+\.[0-9]+|(build|deploy|release)/[a-zA-Z0-9._/-]+)$'
+"#;
+
 // Fully self-contained: reads the pattern straight out of config.toml and
 // validates with grep. No patou binary required, so a repository that has
 // run `init` works for any contributor who just clones it and runs
@@ -100,6 +113,49 @@ echo "must match pattern: $pattern" >&2
 exit 1
 "#;
 
+// Only written when `patou init -t/--tag` is used. Self-contained and
+// section-aware like PRE_COMMIT_HOOK. Git has no hook for local tag
+// creation, so this validates at the one point tags are actually
+// observable to a hook: pre-push receives one "<local ref> <local sha>
+// <remote ref> <remote sha>" line per stdin per ref being pushed, and a
+// pushed tag's local ref is "refs/tags/<name>" - anything else (branches,
+// etc.) is left alone.
+const PRE_PUSH_HOOK: &str = r#"#!/bin/sh
+# Patou pre-push hook. Self-contained: no patou binary required.
+dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+config="$dir/../config.toml"
+
+raw=$(awk '
+  /^\[tag\]/ { in_section=1; next }
+  /^\[/ { in_section=0 }
+  in_section && /^pattern[[:space:]]*=/ { print; exit }
+' "$config")
+raw=${raw#*=}
+raw=$(printf '%s' "$raw" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+raw=${raw#\'}
+pattern=${raw%\'}
+
+if [ -z "$pattern" ]; then
+  exit 0
+fi
+
+status=0
+while read -r local_ref local_sha remote_ref remote_sha; do
+  case "$local_ref" in
+    refs/tags/*)
+      tag=${local_ref#refs/tags/}
+      if ! printf '%s' "$tag" | grep -Eq "$pattern"; then
+        echo "tag name rejected: \"$tag\"" >&2
+        echo "must match pattern: $pattern" >&2
+        status=1
+      fi
+      ;;
+  esac
+done
+
+exit $status
+"#;
+
 // Activates the hooks for one clone (sets the per-clone core.hooksPath git
 // config, which `git clone` never carries over). Plain shell so it works
 // with no patou binary at all — this is the one thing a contributor who
@@ -128,7 +184,7 @@ const INSTALL_CMD: &str = "@echo off\r\nsetlocal\r\nset \"dir=%~dp0\"\r\nif not 
 // Windows native wrapper (PowerShell), same purpose as INSTALL_CMD.
 const INSTALL_PS1: &str = "$ErrorActionPreference = 'Stop'\r\n$dir = Split-Path -Parent $MyInvocation.MyCommand.Path\r\n$repoRoot = Split-Path -Parent $dir\r\n\r\nif (-not (Test-Path (Join-Path $dir 'hooks'))) {\r\n    Write-Error \"no $dir\\hooks found - is Patou set up in this repository?\"\r\n    exit 1\r\n}\r\n\r\ngit -C $repoRoot config core.hooksPath .patou/hooks\r\nif ($LASTEXITCODE -ne 0) { exit 1 }\r\n\r\nWrite-Host \"Patou activated for $repoRoot\"\r\nWrite-Host \"  git config core.hooksPath -> .patou/hooks\"\r\n";
 
-pub fn run(branch: bool) -> io::Result<()> {
+pub fn run(branch: bool, tag: bool) -> io::Result<()> {
     let repo_root = git::repo_root()?;
 
     let patou_dir = repo_root.join(".patou");
@@ -137,7 +193,7 @@ pub fn run(branch: bool) -> io::Result<()> {
     hide_on_windows(&patou_dir);
 
     let config_path = patou_dir.join("config.toml");
-    let has_branch = ensure_config(&config_path, branch)?;
+    let (has_branch, has_tag) = ensure_config(&config_path, branch, tag)?;
 
     let hook_path = hooks_dir.join("commit-msg");
     write_if_absent(&hook_path, COMMIT_MSG_HOOK)?;
@@ -147,6 +203,12 @@ pub fn run(branch: bool) -> io::Result<()> {
         let pre_commit_hook_path = hooks_dir.join("pre-commit");
         write_if_absent(&pre_commit_hook_path, PRE_COMMIT_HOOK)?;
         make_executable(&pre_commit_hook_path)?;
+    }
+
+    if has_tag {
+        let pre_push_hook_path = hooks_dir.join("pre-push");
+        write_if_absent(&pre_push_hook_path, PRE_PUSH_HOOK)?;
+        make_executable(&pre_push_hook_path)?;
     }
 
     let install_path = patou_dir.join("install");
@@ -166,6 +228,9 @@ pub fn run(branch: bool) -> io::Result<()> {
     println!("  .patou/hooks/commit-msg");
     if has_branch {
         println!("  .patou/hooks/pre-commit (branch naming rule)");
+    }
+    if has_tag {
+        println!("  .patou/hooks/pre-push (tag naming rule)");
     }
     println!("  .patou/install (Linux/macOS/Git Bash)");
     println!("  .patou/install.cmd (Windows cmd.exe)");
@@ -190,31 +255,42 @@ fn write_if_absent(path: &Path, contents: &str) -> io::Result<()> {
 
 // Makes sure config.toml has every rule section this invocation wants:
 // [commit] unconditionally (it's the baseline rule every `init` has always
-// written), and [branch] when `want_branch` is true. A brand-new file just
-// gets written with everything it needs, same as before. An *existing* file
-// is never silently rewritten (`init` staying idempotent matters more here
-// than ever, since this file is meant to hold hand-edited rules) - instead,
-// for each wanted section missing from it, the user is asked whether to
-// append the default block, e.g. so a repo that ran plain `init` earlier
-// and now runs `init -b` gets offered the [branch] section it's missing
-// rather than silently staying without one.
+// written), [branch] when `want_branch` is true, and [tag] when `want_tag`
+// is true. A brand-new file just gets written with everything it needs,
+// same as before. An *existing* file is never silently rewritten (`init`
+// staying idempotent matters more here than ever, since this file is meant
+// to hold hand-edited rules) - instead, for each wanted section missing
+// from it, the user is asked whether to append the default block, e.g. so
+// a repo that ran plain `init` earlier and now runs `init -b` gets offered
+// the [branch] section it's missing rather than silently staying without
+// one.
 //
-// Returns whether [branch] ends up present (already there, or just added),
-// which is what decides whether the pre-commit hook gets written below.
-fn ensure_config(config_path: &Path, want_branch: bool) -> io::Result<bool> {
+// Returns whether [branch] and [tag] each end up present (already there,
+// or just added), which is what decides whether the pre-commit/pre-push
+// hooks get written below.
+fn ensure_config(
+    config_path: &Path,
+    want_branch: bool,
+    want_tag: bool,
+) -> io::Result<(bool, bool)> {
     if !config_path.exists() {
         let mut contents = format!("{CONFIG_HEADER}{COMMIT_CONFIG}");
         if want_branch {
             contents.push('\n');
             contents.push_str(BRANCH_CONFIG);
         }
+        if want_tag {
+            contents.push('\n');
+            contents.push_str(TAG_CONFIG);
+        }
         fs::write(config_path, contents)?;
-        return Ok(want_branch);
+        return Ok((want_branch, want_tag));
     }
 
     println!("  skipped {} (already exists)", config_path.display());
     let existing = fs::read_to_string(config_path)?;
     let mut has_branch = has_section(&existing, "[branch]");
+    let mut has_tag = has_section(&existing, "[tag]");
 
     if !has_section(&existing, "[commit]")
         && prompt_yes_no(
@@ -234,7 +310,17 @@ fn ensure_config(config_path: &Path, want_branch: bool) -> io::Result<bool> {
         has_branch = true;
     }
 
-    Ok(has_branch)
+    if want_tag
+        && !has_tag
+        && prompt_yes_no(
+            "  config.toml is missing the [tag] rule - add the default tag naming pattern?",
+        )
+    {
+        append_section(config_path, "tag", TAG_CONFIG)?;
+        has_tag = true;
+    }
+
+    Ok((has_branch, has_tag))
 }
 
 fn has_section(config_contents: &str, marker: &str) -> bool {
