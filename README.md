@@ -93,7 +93,29 @@ patou check
  - [X] Automate releases
  - [X] Add CI for builds and tests
 
---
+---
+
+## 🐕 Why Patou?
+
+The name **Patou** comes from the **Great Pyrenees**, a large mountain dog traditionally used by shepherds to guard and protect flocks of sheep.
+
+That idea is at the heart of this project.
+
+Just like a Patou watches over a flock, **Patou watches over your Git repository**. It stays close to the project, enforces its rules, and helps prevent invalid commits from making their way into the codebase.
+
+The project was also born from a simple frustration with existing Git hook and quality tools. Many popular solutions rely on **Node.js, npm, or other project-specific runtimes and dependencies**. While those tools can be powerful, they can also add setup and maintenance overhead to projects that simply need a reliable way to enforce a few Git rules.
+
+Patou takes a different approach:
+
+* 🐕 **It stays with the repository** — configuration and rules can be version-controlled alongside the code.
+* 🦀 **It is built in Rust** — distributed as a fast, standalone executable.
+* 📦 **It has no Node.js or npm dependency** — and does not require a project-specific runtime.
+* 🔒 **It protects the development workflow** — by validating commits and other Git operations before they reach the repository.
+* 🪶 **It aims to stay lightweight** — simple to install, simple to configure, and easy to carry from project to project.
+
+In short, **Patou is a small guard for your Git workflow**: close to the project, easy to deploy, and there when you need it.
+
+---
 
 ## Uninstall
 
