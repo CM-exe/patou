@@ -16,6 +16,18 @@ const DEFAULT_CONFIG: &str = r#"# Patou configuration
 pattern = '^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([a-z0-9-]+\))?: .{1,72}$'
 "#;
 
+// Appended to DEFAULT_CONFIG (only when `patou init -b/--branch` is used).
+// Same single-quoted-literal-string reasoning as [commit].pattern above -
+// this exact pattern is also read by the pre-commit hook's grep -E.
+const DEFAULT_BRANCH_CONFIG: &str = r#"
+[branch]
+# Branch naming convention, enforced by the pre-commit hook on every commit.
+# Defaults: `main`; `develop`/`dev` (drop these two if your workflow has no
+# long-lived integration branch); and `<type>/<description>` for
+# feature/fix/hotfix/refactor/chore/docs branches.
+pattern = '^(main|develop|dev|(feature|fix|hotfix|refactor|chore|docs)/[a-zA-Z0-9._/-]+)$'
+"#;
+
 // Fully self-contained: reads the pattern straight out of config.toml and
 // validates with grep. No patou binary required, so a repository that has
 // run `init` works for any contributor who just clones it and runs
@@ -48,6 +60,43 @@ echo "must match pattern: $pattern" >&2
 exit 1
 "#;
 
+// Only written when `patou init -b/--branch` is used. Self-contained like
+// COMMIT_MSG_HOOK, but section-aware when pulling `pattern` out of
+// config.toml (unlike the commit-msg hook's plain `grep '^pattern'`) since
+// a [branch] section means the file now has two lines starting with
+// `pattern`, and the commit-msg hook's naive "first match" approach would
+// otherwise silently pick up whichever pattern happens to come first.
+const PRE_COMMIT_HOOK: &str = r#"#!/bin/sh
+# Patou pre-commit hook. Self-contained: no patou binary required.
+dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+config="$dir/../config.toml"
+
+raw=$(awk '
+  /^\[branch\]/ { in_section=1; next }
+  /^\[/ { in_section=0 }
+  in_section && /^pattern[[:space:]]*=/ { print; exit }
+' "$config")
+raw=${raw#*=}
+raw=$(printf '%s' "$raw" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+raw=${raw#\'}
+pattern=${raw%\'}
+
+if [ -z "$pattern" ]; then
+  exit 0
+fi
+
+# Not on a branch (detached HEAD, e.g. mid-rebase) - nothing to validate.
+branch=$(git symbolic-ref --short HEAD 2>/dev/null) || exit 0
+
+if printf '%s' "$branch" | grep -Eq "$pattern"; then
+  exit 0
+fi
+
+echo "branch name rejected: \"$branch\"" >&2
+echo "must match pattern: $pattern" >&2
+exit 1
+"#;
+
 // Activates the hooks for one clone (sets the per-clone core.hooksPath git
 // config, which `git clone` never carries over). Plain shell so it works
 // with no patou binary at all — this is the one thing a contributor who
@@ -76,7 +125,7 @@ const INSTALL_CMD: &str = "@echo off\r\nsetlocal\r\nset \"dir=%~dp0\"\r\nif not 
 // Windows native wrapper (PowerShell), same purpose as INSTALL_CMD.
 const INSTALL_PS1: &str = "$ErrorActionPreference = 'Stop'\r\n$dir = Split-Path -Parent $MyInvocation.MyCommand.Path\r\n$repoRoot = Split-Path -Parent $dir\r\n\r\nif (-not (Test-Path (Join-Path $dir 'hooks'))) {\r\n    Write-Error \"no $dir\\hooks found - is Patou set up in this repository?\"\r\n    exit 1\r\n}\r\n\r\ngit -C $repoRoot config core.hooksPath .patou/hooks\r\nif ($LASTEXITCODE -ne 0) { exit 1 }\r\n\r\nWrite-Host \"Patou activated for $repoRoot\"\r\nWrite-Host \"  git config core.hooksPath -> .patou/hooks\"\r\n";
 
-pub fn run() -> io::Result<()> {
+pub fn run(branch: bool) -> io::Result<()> {
     let repo_root = git::repo_root()?;
 
     let patou_dir = repo_root.join(".patou");
@@ -85,11 +134,22 @@ pub fn run() -> io::Result<()> {
     hide_on_windows(&patou_dir);
 
     let config_path = patou_dir.join("config.toml");
-    write_if_absent(&config_path, DEFAULT_CONFIG)?;
+    let config_contents = if branch {
+        format!("{DEFAULT_CONFIG}{DEFAULT_BRANCH_CONFIG}")
+    } else {
+        DEFAULT_CONFIG.to_string()
+    };
+    write_if_absent(&config_path, &config_contents)?;
 
     let hook_path = hooks_dir.join("commit-msg");
     write_if_absent(&hook_path, COMMIT_MSG_HOOK)?;
     make_executable(&hook_path)?;
+
+    if branch {
+        let pre_commit_hook_path = hooks_dir.join("pre-commit");
+        write_if_absent(&pre_commit_hook_path, PRE_COMMIT_HOOK)?;
+        make_executable(&pre_commit_hook_path)?;
+    }
 
     let install_path = patou_dir.join("install");
     write_if_absent(&install_path, INSTALL_SCRIPT)?;
@@ -106,6 +166,9 @@ pub fn run() -> io::Result<()> {
     println!("Initialized Patou in {}", repo_root.display());
     println!("  .patou/config.toml");
     println!("  .patou/hooks/commit-msg");
+    if branch {
+        println!("  .patou/hooks/pre-commit (branch naming rule)");
+    }
     println!("  .patou/install (Linux/macOS/Git Bash)");
     println!("  .patou/install.cmd (Windows cmd.exe)");
     println!("  .patou/install.ps1 (Windows PowerShell)");

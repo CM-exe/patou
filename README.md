@@ -79,7 +79,7 @@ patou check
  - [ ] Add helpful CLI output and diagnostics
  - [X] Provide documentation and examples
  - [X] Add easy Git CI/CD integration (almost)
- - [ ] Add integration to VS code terminal and auto VS code settings adding in installation scripts
+ - [X] Add integration to VS code terminal and auto VS code settings adding in installation scripts
 
 ### Distribution
 

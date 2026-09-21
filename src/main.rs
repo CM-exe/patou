@@ -15,7 +15,12 @@ struct Cli {
 #[derive(Subcommand)]
 enum Commands {
     /// Initialize Patou in a Git repository (config + hooks)
-    Init,
+    Init {
+        /// Also add the default branch naming rule (and the pre-commit hook
+        /// that enforces it)
+        #[arg(short, long)]
+        branch: bool,
+    },
     /// Activate Patou for an existing repository (link the githooks)
     Install,
     /// Validate a commit against the project's rules
@@ -42,7 +47,7 @@ fn main() -> ExitCode {
     };
 
     let result = match command {
-        Commands::Init => commands::init::run().map(|_| true),
+        Commands::Init { branch } => commands::init::run(branch).map(|_| true),
         Commands::Install => commands::install::run(),
         Commands::Check { message_file, raw } => commands::check::run(message_file, raw),
     };

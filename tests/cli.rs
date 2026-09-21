@@ -75,6 +75,34 @@ fn init_creates_config_hooks_and_install_scripts() {
 }
 
 #[test]
+fn init_branch_adds_branch_config_and_pre_commit_hook() {
+    let repo = init_git_repo();
+
+    patou(repo.path()).args(["init", "-b"]).assert().success();
+
+    for path in [".patou/config.toml", ".patou/hooks/pre-commit"] {
+        assert!(repo.path().join(path).is_file(), "missing {path}");
+    }
+
+    let config = fs::read_to_string(repo.path().join(".patou/config.toml")).unwrap();
+    assert!(
+        config.contains("[branch]"),
+        "config.toml missing [branch] section"
+    );
+}
+
+#[test]
+fn init_without_branch_flag_has_no_branch_config_or_hook() {
+    let repo = init_git_repo();
+
+    patou(repo.path()).arg("init").assert().success();
+
+    assert!(!repo.path().join(".patou/hooks/pre-commit").exists());
+    let config = fs::read_to_string(repo.path().join(".patou/config.toml")).unwrap();
+    assert!(!config.contains("[branch]"));
+}
+
+#[test]
 fn init_is_idempotent() {
     let repo = init_git_repo();
 
@@ -301,5 +329,41 @@ fn commit_msg_hook_enforces_rules_without_a_global_patou_install() {
         String::from_utf8_lossy(&log.stdout).lines().count(),
         1,
         "only the conventional commit should have gone through"
+    );
+}
+
+/// Same guarantee as commit_msg_hook_enforces_rules_without_a_global_patou_install,
+/// but for the [branch] rule's pre-commit hook.
+#[test]
+fn pre_commit_hook_enforces_branch_naming_without_a_global_patou_install() {
+    let repo = init_git_repo();
+    git(
+        repo.path(),
+        &["checkout", "-q", "-b", "not-a-valid-branch-name"],
+    );
+    patou(repo.path()).args(["init", "-b"]).assert().success();
+
+    fs::write(repo.path().join("file.txt"), "hello\n").unwrap();
+    git(repo.path(), &["add", "file.txt"]);
+
+    let bad = git(repo.path(), &["commit", "-m", "feat: add file"]);
+    assert!(
+        !bad.status.success(),
+        "expected the commit on a non-conventional branch to be rejected by the hook"
+    );
+
+    git(repo.path(), &["checkout", "-q", "-b", "feature/valid-name"]);
+    let good = git(repo.path(), &["commit", "-m", "feat: add file"]);
+    assert!(
+        good.status.success(),
+        "expected the commit on a conventional branch name to succeed: {}",
+        String::from_utf8_lossy(&good.stderr)
+    );
+
+    let log = git(repo.path(), &["log", "--oneline"]);
+    assert_eq!(
+        String::from_utf8_lossy(&log.stdout).lines().count(),
+        1,
+        "only the commit on the conventional branch name should have gone through"
     );
 }
