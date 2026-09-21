@@ -1,52 +1,5 @@
 /* Small brand icon next to the book title in the top menu bar, reusing
    the favicon mdBook already copies to the output root. */
-:root {
-    --patou-navy: #1b1e26;
-    --patou-text: #2b2f38;
-    --patou-muted: #5c6370;
-    --patou-blue: #3b6ea5;
-    --patou-light-blue: #7ecbff;
-    --patou-code-text: #c8d3e0;
-}
-
-body {
-    background: #f3f6fa;
-    color: var(--patou-text);
-}
-
-#sidebar {
-    background: var(--patou-navy);
-    color: var(--patou-code-text);
-}
-
-#sidebar .chapter li a {
-    color: var(--patou-code-text);
-}
-
-#sidebar .chapter li a:hover,
-#sidebar .chapter li a.active {
-    color: var(--patou-light-blue);
-}
-
-a,
-.content a {
-    color: var(--patou-blue);
-}
-
-pre,
-pre code {
-    background: var(--patou-navy);
-    color: var(--patou-code-text);
-}
-
-pre {
-    border: 1px solid #3b6ea5;
-}
-
-code {
-    color: #4a7fb5;
-}
-
 .menu-title {
     display: inline-flex;
     align-items: center;
@@ -63,4 +16,48 @@ code {
     background-size: contain;
     background-repeat: no-repeat;
     background-position: center;
+}
+
+/* Patou mdbooks theme colors, based on the default light theme. */
+.light, html:not(.js) {
+    --bg: #f4f7fb;
+    --fg: #1b1e26;
+    --sidebar-bg: #e6ebf2;
+    --sidebar-fg: #2b2f38;
+    --sidebar-non-existant: #8f98a8;
+    --sidebar-active: #3b6ea5;
+    --sidebar-spacer: #d9e0ea;
+    --scrollbar: #8c97a8;
+    --icons: #6e788a;
+    --icons-hover: #3b6ea5;
+    --links: #3b6ea5;
+    --inline-code-color: #2b4f78;
+    --theme-popup-bg: #f4f7fb;
+    --theme-popup-border: #b8c2d0;
+    --theme-hover: #dfe8f2;
+    --quote-bg: #e8f2f8;
+    --quote-border: #b8d9e8;
+    --warning-border: #9f8a60;
+    --table-border-color: #d5dce6;
+    --table-header-bg: #c7d0dc;
+    --table-alternate-bg: #edf1f6;
+    --searchbar-border-color: #9ca8b8;
+    --searchbar-bg: #f4f7fb;
+    --searchbar-fg: #1b1e26;
+    --searchbar-shadow-color: #aeb8c7;
+    --searchresults-header-fg: #596577;
+    --searchresults-border-color: #8793a4;
+    --searchresults-li-bg: #dcecf8;
+    --search-mark-bg: #9fd8ff;
+    --color-scheme: light;
+    --copy-button-filter: invert(45.49%);
+    --copy-button-filter-hover: invert(14%) sepia(93%) saturate(4250%) hue-rotate(243deg) brightness(99%) contrast(130%);
+    --footnote-highlight: #6fb1e0;
+    --overlay-bg: rgba(43, 47, 56, 0.25);
+    --blockquote-note-color: #3b6ea5;
+    --blockquote-tip-color: #4a7fb5;
+    --blockquote-important-color: #6e788a;
+    --blockquote-warning-color: #8a97a8;
+    --blockquote-caution-color: #b05a5a;
+    --sidebar-header-border-color: #6fb1e0;
 }
