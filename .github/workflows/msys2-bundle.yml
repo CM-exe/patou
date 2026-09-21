@@ -52,11 +52,16 @@ jobs:
           msystem: MSYS
           update: true
 
-      - name: Install git (retrying on transient mirror errors)
+      - name: Install git and vim (retrying on transient mirror errors)
         shell: msys2 {0}
+        # vim provides `vi` too (both a symlink and a Vi-compatible mode) -
+        # standalone MSYS2, unlike Git for Windows, ships with no editor at
+        # all, so without this `vi`/`vim`, git's own hardcoded fallback
+        # editor, `git config --global --edit`, etc. would all fail with
+        # "command not found" inside a bundled patou-bash session.
         run: |
           for i in 1 2 3 4 5; do
-            pacman -S --needed --noconfirm git && exit 0
+            pacman -S --needed --noconfirm git vim && exit 0
             echo "pacman failed (attempt $i/5) - mirror.msys2.org can be flaky; retrying in 15s..."
             sleep 15
           done

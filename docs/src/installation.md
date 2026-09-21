@@ -64,7 +64,9 @@ bundle is built in CI by
 [`.github/workflows/msys2-bundle.yml`](https://github.com/CM-exe/patou/blob/main/.github/workflows/msys2-bundle.yml)
 — using the official
 [`msys2/setup-msys2`](https://github.com/msys2/setup-msys2) GitHub
-Action to set up MSYS2 and `pacman`-install `git` into it — and
+Action to set up MSYS2 and `pacman`-install `git` and `vim` into it (the
+latter for a `vi`/`vim` binary - standalone MSYS2 otherwise ships no
+editor at all) — and
 published as `patou-msys2-x86_64.zip`, an asset
 on that **same patou release**, right alongside `patou-<target>.zip`.
 The install scripts fetch it using the exact same version they're

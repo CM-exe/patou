@@ -49,10 +49,25 @@ mod windows_only {
     use std::ffi::OsString;
     use std::fs;
     use std::io;
+    use std::os::windows::process::CommandExt;
     use std::path::{Path, PathBuf};
     use std::process::Command;
 
     const BANNER: &str = include_str!("../../assets/patou-bash-banner.txt");
+
+    // Passed to every Command that shells out to a *console* program (reg,
+    // git, where) from this process. patou-bash.exe is windows_subsystem =
+    // "windows" (no console of its own): without this flag, spawning a
+    // console-subsystem child can make Windows attach or briefly allocate a
+    // console for it, which is how a launch that's supposed to be silent
+    // (this runs on every "Open Patou bash here" and on install/
+    // --customize-only) ends up leaking a child's OS-locale error text
+    // (e.g. a failed `git --exec-path`/`where git.exe` lookup) into
+    // whatever console happens to be around - a cmd.exe window running
+    // install.cmd, for instance - instead of staying invisible like the
+    // rest of this launcher. `.output()` already pipes stdout/stderr so
+    // nothing is lost - this only controls console *allocation*.
+    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
     // Overrides PS1 to show the current branch next to the path, like Git
     // Bash's own default prompt (`__git_ps1`) - white for a plain repo,
@@ -394,6 +409,7 @@ esac
         let git_exe = system_git_exe(system_root)?;
         let output = Command::new(git_exe)
             .args(["config", "--global", "--list", "--show-origin"])
+            .creation_flags(CREATE_NO_WINDOW)
             .output()
             .ok()?;
         let stdout = String::from_utf8_lossy(&output.stdout);
@@ -481,7 +497,11 @@ esac
     /// there looking for the install root (recognised by `git-bash.exe`
     /// existing under it).
     fn git_root_from_exec_path() -> Option<PathBuf> {
-        let output = Command::new("git").arg("--exec-path").output().ok()?;
+        let output = Command::new("git")
+            .arg("--exec-path")
+            .creation_flags(CREATE_NO_WINDOW)
+            .output()
+            .ok()?;
         if !output.status.success() {
             return None;
         }
@@ -496,7 +516,11 @@ esac
     /// from wherever that turns out to be (`cmd\`, `bin\`, or
     /// `mingw64\bin\`, depending on the install).
     fn git_root_from_path_lookup() -> Option<PathBuf> {
-        let output = Command::new("where").arg("git.exe").output().ok()?;
+        let output = Command::new("where")
+            .arg("git.exe")
+            .creation_flags(CREATE_NO_WINDOW)
+            .output()
+            .ok()?;
         if !output.status.success() {
             return None;
         }
@@ -523,6 +547,7 @@ esac
     fn reg_query_value(hive: &str, key: &str, value_name: &str) -> Option<String> {
         let output = Command::new("reg")
             .args(["query", &format!(r"{hive}\{key}"), "/v", value_name])
+            .creation_flags(CREATE_NO_WINDOW)
             .output()
             .ok()?;
         if !output.status.success() {
