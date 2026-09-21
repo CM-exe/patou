@@ -8,6 +8,8 @@ use crate::git;
 const CONFIG_HEADER: &str = r#"# Patou configuration
 # Rules defined here are versioned with the repository, so every
 # contributor validates commits the same way.
+#
+# See https://cm-exe.github.io/patou/configuration.html for details on the configuration format and available rules.
 
 "#;
 
