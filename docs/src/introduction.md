@@ -11,7 +11,23 @@ project-specific dependencies required.
 
 **Clone the repository, get the rules, follow the same standards.**
 
-## 🐕 Why this name?
+## Why Patou
+
+Most commit-linting tools (commitlint, Husky, pre-commit) need a Node.js
+or Python toolchain installed on every contributor's machine, plus a
+`package.json`/`requirements.txt` living in the project. Patou takes a
+different approach:
+
+- Rules live in a single `.patou/config.toml`, versioned with the project.
+- The Git hook that enforces them is a small, dependency-free shell
+  script — it doesn't call out to the `patou` binary, so a contributor who
+  only clones the repository doesn't need to install anything to get
+  working, enforced rules.
+- The `patou` binary itself is only needed by the person scaffolding
+  Patou into a repository (`patou init`), or by anyone who wants to run
+  checks manually or in CI.
+
+## Why this name?
 
 The name **Patou** comes from the **Great Pyrenees**, a large mountain dog
 traditionally used by shepherds to guard and protect flocks of sheep.
@@ -41,24 +57,6 @@ Patou takes a different approach:
 
 In short, **Patou is a small guard for your Git workflow**: close to the
 project, easy to deploy, and there when you need it.
-
-## Why Patou
-
-Most commit-linting tools (commitlint, Husky, pre-commit) need a Node.js
-or Python toolchain installed on every contributor's machine, plus a
-`package.json`/`requirements.txt` living in the project. Patou takes a
-different approach:
-
-- Rules live in a single `.patou/config.toml`, versioned with the project.
-- The Git hook that enforces them is a small, dependency-free shell
-  script — it doesn't call out to the `patou` binary, so a contributor who
-  only clones the repository doesn't need to install anything to get
-  working, enforced rules.
-- The `patou` binary itself is only needed by the person scaffolding
-  Patou into a repository (`patou init`), or by anyone who wants to run
-  checks manually or in CI.
-
-
 
 ## What it does today
 
