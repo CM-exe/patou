@@ -8,9 +8,9 @@ behavior) but hasn't been run on real hardware yet.
 | Platform                     | `commit-msg`/`pre-commit`/`pre-push` hook enforcement | `install` activation |
 | ----------------------------- | ------------------------------ | ---------------------- |
 | Linux                         | ✅ Tested                      | ✅ Tested (`.patou/install`) |
-| macOS                         | ✅ Expected to work (untested)  | ✅ Expected to work (untested) |
-| Windows, via Git for Windows   | ✅ Expected to work (untested)  | ✅ `.patou/install.cmd` or `.patou/install.ps1` |
-| Windows, via Git Bash          | ✅ Expected to work (untested)  | ✅ `.patou/install` also works |
+| macOS                         | ✅ Expected to work (untested) | ✅ Expected to work (untested) |
+| Windows                       | ✅ Tested                      | ✅ `.patou/install.cmd` or `.patou/install.ps1` |
+| Windows, via Patou Bash       | ✅ Tested                      | ✅ `patou install` also works |
 
 ## Why the hooks themselves should work everywhere Git does
 
