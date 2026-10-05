@@ -319,6 +319,7 @@
     const el = document.createElement(tag);
     if (attrs) {
       for (const [k, v] of Object.entries(attrs)) {
+        if (v === null || v === undefined || v === false) continue;
         if (k === "class") el.className = v;
         else if (k === "text") el.textContent = v;
         else if (k.startsWith("on") && typeof v === "function") el.addEventListener(k.slice(2), v);
@@ -337,7 +338,9 @@
       root.innerHTML = "";
       root.appendChild(buildToolbar());
       root.appendChild(buildCanvas());
-      root.appendChild(buildOutput());
+      const out = buildOutput();
+      root.appendChild(out);
+      outputEl = out;
     }
 
     function buildToolbar() {
@@ -380,8 +383,14 @@
       });
 
       return h("div", { class: "prb-toolbar" }, [
-        h("div", { class: "prb-toolbar-row" }, [presetSelect, resetBtn]),
-        h("div", { class: "prb-toolbar-row prb-toolbar-add" }, addButtons),
+        h("div", { class: "prb-toolbar-group" }, [
+          h("span", { class: "prb-toolbar-label", text: "Start from a template" }),
+          h("div", { class: "prb-toolbar-row" }, [presetSelect, resetBtn]),
+        ]),
+        h("div", { class: "prb-toolbar-group" }, [
+          h("span", { class: "prb-toolbar-label", text: "Add a piece" }),
+          h("div", { class: "prb-toolbar-row prb-toolbar-add" }, addButtons),
+        ]),
       ]);
     }
 
@@ -408,7 +417,8 @@
             render();
           },
         }),
-        h("span", { text: "^ start of string" }),
+        h("span", { class: "prb-anchor-sym", text: "^" }),
+        h("span", { text: "anchor to the start of the string" }),
       ]);
       const anchorEndBox = h("label", { class: "prb-anchor-toggle" }, [
         h("input", {
@@ -419,7 +429,8 @@
             render();
           },
         }),
-        h("span", { text: "$ end of string" }),
+        h("span", { class: "prb-anchor-sym", text: "$" }),
+        h("span", { text: "anchor to the end of the string" }),
       ]);
 
       const seqEl = renderSequence(state.root, {
@@ -437,7 +448,8 @@
       });
 
       return h("div", { class: "prb-canvas" }, [
-        h("div", { class: "prb-anchors" }, [anchorStartBox, h("div", { class: "prb-seq-wrap" }, [seqEl]), anchorEndBox]),
+        h("div", { class: "prb-anchor-bar" }, [anchorStartBox, anchorEndBox]),
+        seqEl,
       ]);
     }
 
@@ -474,7 +486,7 @@
         if (opt.kind === kind) o.setAttribute("selected", "selected");
         select.appendChild(o);
       });
-      const children = [select];
+      const children = [h("span", { class: "prb-quant-label", text: "repeat:" }), select];
       if (node.quant && (node.quant.kind === "exact" || node.quant.kind === "atleast" || node.quant.kind === "range")) {
         children.push(
           h("input", {
@@ -512,27 +524,35 @@
     function cardShell(node, idx, count, ctx, title, body) {
       return h("div", { class: "prb-card", "data-type": node.type }, [
         h("div", { class: "prb-card-head" }, [
-          h("span", { class: "prb-card-title", text: title }),
+          h("span", { class: "prb-card-badge" }, [h("span", { class: "prb-card-dot" }), h("span", { text: title })]),
+          node.type !== "anchor" ? quantControl(node) : null,
           h("div", { class: "prb-card-move" }, [
             h("button", {
               class: "prb-icon-btn",
               type: "button",
-              text: "←",
+              title: "Move earlier",
+              text: "↑",
               disabled: idx === 0 ? "disabled" : null,
               onclick: ctx.moveLeft,
             }),
             h("button", {
               class: "prb-icon-btn",
               type: "button",
-              text: "→",
+              title: "Move later",
+              text: "↓",
               disabled: idx === count - 1 ? "disabled" : null,
               onclick: ctx.moveRight,
             }),
-            h("button", { class: "prb-icon-btn prb-icon-btn-danger", type: "button", text: "✕", onclick: ctx.remove }),
+            h("button", {
+              class: "prb-icon-btn prb-icon-btn-danger",
+              type: "button",
+              title: "Remove",
+              text: "✕",
+              onclick: ctx.remove,
+            }),
           ]),
         ]),
         h("div", { class: "prb-card-body" }, body),
-        node.type !== "anchor" ? quantControl(node) : null,
       ]);
     }
 
@@ -540,26 +560,28 @@
       switch (node.type) {
         case "literal":
           return cardShell(node, idx, count, ctx, "Text", [
-            h("input", {
-              class: "prb-input",
-              type: "text",
-              value: node.text,
-              oninput: (e) => {
-                node.text = e.target.value;
-                renderOutputOnly();
-              },
-              onchange: render,
-            }),
-            h("label", { class: "prb-inline-check" }, [
+            h("div", { class: "prb-field-row" }, [
               h("input", {
-                type: "checkbox",
-                ...(node.raw ? { checked: "checked" } : {}),
-                onchange: (e) => {
-                  node.raw = e.target.checked;
-                  render();
+                class: "prb-input",
+                type: "text",
+                value: node.text,
+                oninput: (e) => {
+                  node.text = e.target.value;
+                  renderOutputOnly();
                 },
+                onchange: render,
               }),
-              h("span", { text: "treat as raw regex (no escaping)" }),
+              h("label", { class: "prb-inline-check" }, [
+                h("input", {
+                  type: "checkbox",
+                  ...(node.raw ? { checked: "checked" } : {}),
+                  onchange: (e) => {
+                    node.raw = e.target.checked;
+                    render();
+                  },
+                }),
+                h("span", { text: "raw regex (no escaping)" }),
+              ]),
             ]),
           ]);
 
@@ -580,28 +602,32 @@
           );
           return cardShell(node, idx, count, ctx, "Character set", [
             h("div", { class: "prb-charclass-grid" }, checks),
-            h("label", { class: "prb-field-label", text: "extra literal characters" }),
-            h("input", {
-              class: "prb-input",
-              type: "text",
-              value: node.extra,
-              placeholder: "e.g. -_.",
-              oninput: (e) => {
-                node.extra = e.target.value;
-                renderOutputOnly();
-              },
-              onchange: render,
-            }),
-            h("label", { class: "prb-inline-check" }, [
-              h("input", {
-                type: "checkbox",
-                ...(node.negate ? { checked: "checked" } : {}),
-                onchange: (e) => {
-                  node.negate = e.target.checked;
-                  render();
-                },
-              }),
-              h("span", { text: "negate (match anything NOT in this set)" }),
+            h("div", { class: "prb-field-row" }, [
+              h("div", { class: "prb-field-grow" }, [
+                h("label", { class: "prb-field-label", text: "extra literal characters" }),
+                h("input", {
+                  class: "prb-input",
+                  type: "text",
+                  value: node.extra,
+                  placeholder: "e.g. -_.",
+                  oninput: (e) => {
+                    node.extra = e.target.value;
+                    renderOutputOnly();
+                  },
+                  onchange: render,
+                }),
+              ]),
+              h("label", { class: "prb-inline-check" }, [
+                h("input", {
+                  type: "checkbox",
+                  ...(node.negate ? { checked: "checked" } : {}),
+                  onchange: (e) => {
+                    node.negate = e.target.checked;
+                    render();
+                  },
+                }),
+                h("span", { text: "negate (match anything NOT in this set)" }),
+              ]),
             ]),
           ]);
         }
@@ -653,6 +679,7 @@
               },
             };
             const lane = h("div", { class: "prb-alt-lane" }, [
+              h("div", { class: "prb-alt-label", text: "Option " + (altIdx + 1) }),
               renderSequence(alt, altCtx),
               h("div", { class: "prb-alt-controls" }, [
                 h("div", { class: "prb-alt-add" }, [
@@ -824,7 +851,6 @@
       ]);
 
       updateTestResult();
-      outputEl = out;
       return out;
     }
 
