@@ -5,6 +5,7 @@
 - [Getting started](./getting-started.md)
 - [How hooks work](./hooks.md)
 - [Configuration](./configuration.md)
+- [Regex pattern builder](./regex-builder.md)
 - [Commands](./commands/index.md)
   - [patou init](./commands/init.md)
   - [patou install](./commands/install.md)

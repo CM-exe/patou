@@ -1,0 +1,358 @@
+/* Patou regex pattern builder — styled entirely from mdBook's own theme
+   variables (see docs/book/css/variables.css) so it follows whichever
+   theme (light/navy/coal/ayu/rust) the reader has selected, with no
+   separate dark-mode handling needed here. */
+
+#patou-regex-builder {
+    margin: 1.5rem 0;
+    font-family: inherit;
+}
+
+#patou-regex-builder * {
+    box-sizing: border-box;
+}
+
+#patou-regex-builder .prb-toolbar {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+#patou-regex-builder .prb-toolbar-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+#patou-regex-builder .prb-canvas {
+    border: 1px solid var(--table-border-color);
+    border-radius: 8px;
+    padding: 1rem;
+    background: var(--quote-bg);
+    overflow-x: auto;
+}
+
+#patou-regex-builder .prb-anchors {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+}
+
+#patou-regex-builder .prb-anchor-toggle {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-family: var(--mono-font);
+    font-size: 0.85rem;
+    white-space: nowrap;
+    padding-top: 0.6rem;
+    color: var(--fg);
+    cursor: pointer;
+    user-select: none;
+}
+
+#patou-regex-builder .prb-seq-wrap {
+    flex: 1;
+    min-width: 0;
+}
+
+#patou-regex-builder .prb-sequence {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+    align-items: flex-start;
+}
+
+#patou-regex-builder .prb-empty {
+    font-size: 0.85rem;
+    color: var(--sidebar-non-existant);
+    font-style: italic;
+    padding: 0.5rem;
+}
+
+#patou-regex-builder .prb-card {
+    border: 1px solid var(--table-border-color);
+    border-radius: 6px;
+    background: var(--bg);
+    padding: 0.5rem 0.6rem;
+    min-width: 180px;
+    max-width: 280px;
+}
+
+#patou-regex-builder .prb-card[data-type="group"] {
+    min-width: 260px;
+    max-width: none;
+}
+
+#patou-regex-builder .prb-card-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    margin-bottom: 0.4rem;
+}
+
+#patou-regex-builder .prb-card-title {
+    font-weight: 600;
+    font-size: 0.8rem;
+    color: var(--sidebar-active);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+#patou-regex-builder .prb-card-move {
+    display: flex;
+    gap: 0.15rem;
+}
+
+#patou-regex-builder .prb-card-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+
+#patou-regex-builder .prb-icon-btn {
+    border: 1px solid var(--table-border-color);
+    background: transparent;
+    color: var(--fg);
+    border-radius: 4px;
+    width: 1.6rem;
+    height: 1.6rem;
+    line-height: 1;
+    cursor: pointer;
+    font-size: 0.8rem;
+}
+
+#patou-regex-builder .prb-icon-btn:hover:not(:disabled) {
+    background: var(--theme-hover);
+}
+
+#patou-regex-builder .prb-icon-btn:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+}
+
+#patou-regex-builder .prb-icon-btn-danger:hover:not(:disabled) {
+    border-color: var(--blockquote-caution-color);
+    color: var(--blockquote-caution-color);
+}
+
+#patou-regex-builder .prb-btn {
+    border: 1px solid var(--sidebar-active);
+    background: var(--sidebar-active);
+    color: #fff;
+    border-radius: 6px;
+    padding: 0.35rem 0.7rem;
+    font-size: 0.85rem;
+    cursor: pointer;
+}
+
+#patou-regex-builder .prb-btn:hover {
+    filter: brightness(1.08);
+}
+
+#patou-regex-builder .prb-btn-add {
+    background: transparent;
+    color: var(--sidebar-active);
+}
+
+#patou-regex-builder .prb-btn-ghost {
+    background: transparent;
+    color: var(--fg);
+    border-color: var(--table-border-color);
+}
+
+#patou-regex-builder .prb-btn-xs {
+    padding: 0.2rem 0.5rem;
+    font-size: 0.75rem;
+}
+
+#patou-regex-builder .prb-select,
+#patou-regex-builder .prb-input {
+    border: 1px solid var(--table-border-color);
+    background: var(--bg);
+    color: var(--fg);
+    border-radius: 5px;
+    padding: 0.3rem 0.45rem;
+    font-size: 0.85rem;
+    font-family: inherit;
+}
+
+#patou-regex-builder .prb-input {
+    width: 100%;
+}
+
+#patou-regex-builder .prb-mono {
+    font-family: var(--mono-font);
+}
+
+#patou-regex-builder .prb-select-sm {
+    max-width: 10rem;
+}
+
+#patou-regex-builder .prb-input-num {
+    width: 3.5rem;
+}
+
+#patou-regex-builder .prb-quant {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    margin-top: 0.3rem;
+    padding-top: 0.4rem;
+    border-top: 1px dashed var(--table-border-color);
+}
+
+#patou-regex-builder .prb-inline-check {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.78rem;
+    color: var(--fg);
+    cursor: pointer;
+}
+
+#patou-regex-builder .prb-field-label {
+    font-size: 0.75rem;
+    color: var(--sidebar-non-existant);
+    margin-top: 0.2rem;
+}
+
+#patou-regex-builder .prb-charclass-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.2rem 0.5rem;
+}
+
+#patou-regex-builder .prb-hint {
+    font-size: 0.75rem;
+    color: var(--sidebar-non-existant);
+    margin: 0;
+}
+
+#patou-regex-builder .prb-hint-warn {
+    color: var(--blockquote-warning-color);
+}
+
+#patou-regex-builder .prb-alternatives {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    border-left: 2px solid var(--table-border-color);
+    padding-left: 0.6rem;
+}
+
+#patou-regex-builder .prb-alt-lane {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    padding: 0.4rem;
+    border: 1px dashed var(--table-border-color);
+    border-radius: 5px;
+}
+
+#patou-regex-builder .prb-alt-controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+#patou-regex-builder .prb-alt-add {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+}
+
+#patou-regex-builder .prb-or-divider {
+    align-self: center;
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: var(--sidebar-non-existant);
+    letter-spacing: 0.1em;
+}
+
+#patou-regex-builder .prb-output {
+    margin-top: 1.25rem;
+    border: 1px solid var(--table-border-color);
+    border-radius: 8px;
+    padding: 1rem;
+    background: var(--table-alternate-bg);
+}
+
+#patou-regex-builder .prb-output h4 {
+    margin: 0 0 0.5rem 0;
+}
+
+#patou-regex-builder .prb-pattern-row {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+}
+
+#patou-regex-builder .prb-pattern {
+    font-family: var(--mono-font);
+    background: var(--bg);
+    border: 1px solid var(--table-border-color);
+    border-radius: 5px;
+    padding: 0.4rem 0.6rem;
+    word-break: break-all;
+    color: var(--inline-code-color);
+}
+
+#patou-regex-builder .prb-output-actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.6rem;
+}
+
+#patou-regex-builder .prb-toml {
+    margin-top: 0.8rem;
+    background: var(--bg);
+    border: 1px solid var(--table-border-color);
+    border-radius: 5px;
+    padding: 0.6rem;
+    overflow-x: auto;
+}
+
+#patou-regex-builder .prb-textarea {
+    resize: vertical;
+    font-family: var(--mono-font);
+}
+
+#patou-regex-builder .prb-test-result {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    margin-top: 0.5rem;
+}
+
+#patou-regex-builder .prb-test-line {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.85rem;
+}
+
+#patou-regex-builder .prb-badge {
+    display: inline-block;
+    padding: 0.1rem 0.5rem;
+    border-radius: 999px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+#patou-regex-builder .prb-badge-ok {
+    background: rgba(79, 160, 90, 0.2);
+    color: #4fa05a;
+}
+
+#patou-regex-builder .prb-badge-bad {
+    background: rgba(176, 90, 90, 0.2);
+    color: var(--blockquote-caution-color);
+}
