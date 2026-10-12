@@ -239,9 +239,42 @@ function Add-VsCodeTerminalProfile {
     }
 }
 
+# Adds $Dir to the *user* PATH (HKCU\Environment, no admin needed) unless it
+# is already there, and to the current session's PATH too. The raw registry
+# value is read and written back as REG_EXPAND_SZ so %VARS% already in the
+# user's PATH survive (unlike `[Environment]::SetEnvironmentVariable('Path',
+# $env:Path + ...)`, which would bake in the expanded system PATH as well).
+# PATOU_INSTALL_DIR is set through SetEnvironmentVariable purely so Windows
+# broadcasts the change to running programs; scripts/uninstall.ps1 removes it.
+function Add-ToUserPath {
+    param([string]$Dir)
+
+    $key = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey('Environment', $true)
+    try {
+        $current = [string]$key.GetValue('Path', '', [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames)
+        $wanted = $Dir.TrimEnd('\')
+        $present = $current -split ';' | Where-Object {
+            $_ -and ([Environment]::ExpandEnvironmentVariables($_)).TrimEnd('\') -ieq $wanted
+        }
+        if ($present) {
+            return
+        }
+        $newValue = if ($current) { $current.TrimEnd(';') + ';' + $Dir } else { $Dir }
+        $key.SetValue('Path', $newValue, [Microsoft.Win32.RegistryValueKind]::ExpandString)
+    } finally {
+        $key.Close()
+    }
+    [Environment]::SetEnvironmentVariable('PATOU_INSTALL_DIR', $Dir, 'User')
+    if (($env:Path -split ';') -notcontains $Dir) {
+        $env:Path = "$env:Path;$Dir"
+    }
+    Write-Host "Added $Dir to your user PATH (open a new terminal for other programs to see it)"
+}
+
 $repo = 'CM-exe/patou'
 $version = if ($env:PATOU_VERSION) { $env:PATOU_VERSION } else { 'latest' }
 $installDir = if ($env:PATOU_INSTALL_DIR) { $env:PATOU_INSTALL_DIR } else { "$env:LOCALAPPDATA\Patou\bin" }
+$installDir = $installDir.TrimEnd('\')
 $target = 'x86_64-pc-windows-msvc'
 $asset = "patou-$target.zip"
 
@@ -261,22 +294,25 @@ try {
 
     Expand-Archive -Path $zipPath -DestinationPath $tmpDir -Force
 
+    if (-not (Test-Path (Join-Path $tmpDir 'patou.exe'))) {
+        throw "$asset does not contain patou.exe"
+    }
+
     New-Item -ItemType Directory -Force -Path $installDir | Out-Null
     Move-Item -Force (Join-Path $tmpDir 'patou.exe') (Join-Path $installDir 'patou.exe')
-    Move-Item -Force (Join-Path $tmpDir 'patou-bash.exe') (Join-Path $installDir 'patou-bash.exe')
+    # patou-bash.exe is optional: older releases only shipped patou.exe.
+    if (Test-Path (Join-Path $tmpDir 'patou-bash.exe')) {
+        Move-Item -Force (Join-Path $tmpDir 'patou-bash.exe') (Join-Path $installDir 'patou-bash.exe')
+    }
 
     Write-Host "Installed patou to $installDir\patou.exe"
 
-    $pathEntries = $env:Path -split ';'
-    if ($pathEntries -notcontains $installDir) {
-        Write-Host "note: $installDir is not on your PATH. Add it, e.g.:"
-        Write-Host "  [Environment]::SetEnvironmentVariable('Path', ""`$env:Path;$installDir"", 'User')"
-    }
+    Add-ToUserPath -Dir $installDir
 } finally {
     Remove-Item -Recurse -Force $tmpDir
 }
 
-if (-not $env:PATOU_SKIP_BASH_HERE) {
+if (-not $env:PATOU_SKIP_BASH_HERE -and (Test-Path (Join-Path $installDir 'patou-bash.exe'))) {
     try {
         Install-BundledMsys2 -InstallDir $installDir -Repo $repo -Version $version
         # Writes patou-banner.sh/patou-prompt.sh/minttyrc into the bundled

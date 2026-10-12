@@ -16,6 +16,13 @@ repo="CM-exe/patou"
 version="${PATOU_VERSION:-latest}"
 install_dir="${PATOU_INSTALL_DIR:-$HOME/.local/bin}"
 
+for tool in curl tar; do
+  if ! command -v "$tool" >/dev/null 2>&1; then
+    echo "error: $tool is required but not installed" >&2
+    exit 1
+  fi
+done
+
 os=$(uname -s)
 arch=$(uname -m)
 

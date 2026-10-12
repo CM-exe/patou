@@ -20,6 +20,25 @@ if (-not (Test-Path $binPath)) {
 Remove-Item -Force $binPath
 Write-Host "Removed $binPath"
 
+# Undo what scripts/install.ps1's Add-ToUserPath added: the entry in the user
+# PATH (rewritten as REG_EXPAND_SZ so other %VARS% in it survive) and the
+# PATOU_INSTALL_DIR variable.
+$envKey = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey('Environment', $true)
+try {
+    $current = [string]$envKey.GetValue('Path', '', [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames)
+    $wanted = $installDir.TrimEnd('\')
+    $entries = @($current -split ';' | Where-Object { $_ })
+    $kept = @($entries | Where-Object { ([Environment]::ExpandEnvironmentVariables($_)).TrimEnd('\') -ine $wanted })
+    if ($kept.Count -ne $entries.Count) {
+        $envKey.SetValue('Path', ($kept -join ';'), [Microsoft.Win32.RegistryValueKind]::ExpandString)
+        Write-Host "Removed $installDir from your user PATH"
+    }
+} finally {
+    $envKey.Close()
+}
+# Also broadcasts the environment change to running programs.
+[Environment]::SetEnvironmentVariable('PATOU_INSTALL_DIR', $null, 'User')
+
 # Undo what scripts/install.ps1's Add-PatouBashHere added, if anything.
 foreach ($key in 'HKCU:\Software\Classes\Directory\Background\shell\PatouBashHere', 'HKCU:\Software\Classes\Directory\shell\PatouBashHere') {
     if (Test-Path $key) {

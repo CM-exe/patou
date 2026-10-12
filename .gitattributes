@@ -1,0 +1,9 @@
+# These scripts are downloaded raw (curl/irm from raw.githubusercontent.com)
+# and executed as-is, so the committed bytes must have the line endings the
+# interpreter needs, regardless of each contributor's core.autocrlf:
+# - sh needs LF (a CR breaks `set -eu` and the shebang)
+# - cmd.exe batch files need CRLF (LF-only files can break `goto`/labels)
+*.sh   text eol=lf
+*.cmd  text eol=crlf
+*.ps1  text eol=crlf
+*.vbs  text eol=crlf

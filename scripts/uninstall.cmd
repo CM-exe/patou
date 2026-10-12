@@ -11,6 +11,7 @@
 setlocal
 
 if "%PATOU_INSTALL_DIR%"=="" (set "install_dir=%LOCALAPPDATA%\Patou\bin") else (set "install_dir=%PATOU_INSTALL_DIR%")
+if "%install_dir:~-1%"=="\" set "install_dir=%install_dir:~0,-1%"
 set "bin_path=%install_dir%\patou.exe"
 
 if not exist "%bin_path%" (
@@ -69,8 +70,59 @@ for %%N in (msys64 git) do (
   )
 )
 
+call :remove_from_path
+
 endlocal
 exit /b 0
+
+:: Removes %install_dir% from the *user* PATH again (undoing install.cmd's
+:add_to_path) and deletes the PATOU_INSTALL_DIR variable it set. Same
+:: caution as there: a PATH holding non-ASCII characters (checked with an
+:: allow-list, since `reg query` output goes through the console codepage)
+:: is left untouched and the user is told to edit it by hand.
+:remove_from_path
+setlocal
+set "user_path="
+for /f "tokens=2,*" %%A in ('reg query "HKCU\Environment" /v Path 2^>nul ^| findstr /i /r /c:"^ *Path  *REG_"') do set "user_path=%%B"
+setlocal EnableDelayedExpansion
+
+if not defined user_path goto :remove_from_path_var
+
+set "chk=;!user_path!;"
+if /i "!chk:;%install_dir%;=!"=="!chk!" goto :remove_from_path_var
+
+>"%TEMP%\patou-path-check.txt" echo(!user_path!
+findstr /r /c:"^[abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 _.;:\/%%()+,~=&#@$-]*$" "%TEMP%\patou-path-check.txt" >nul
+if errorlevel 1 (
+  del /f /q "%TEMP%\patou-path-check.txt" >nul 2>&1
+  echo note: %install_dir% is still on your PATH - remove it manually ^(Win+R, sysdm.cpl, Advanced, Environment Variables^)
+  goto :remove_from_path_var
+)
+del /f /q "%TEMP%\patou-path-check.txt" >nul 2>&1
+
+:: Twice, so adjacent duplicates (";dir;dir;") are removed too.
+set "new_path=;!user_path!;"
+set "new_path=!new_path:;%install_dir%;=;!"
+set "new_path=!new_path:;%install_dir%;=;!"
+if "!new_path:~0,1!"==";" set "new_path=!new_path:~1!"
+if "!new_path:~-1!"==";" set "new_path=!new_path:~0,-1!"
+
+reg add "HKCU\Environment" /v Path /t REG_EXPAND_SZ /d "!new_path!" /f >nul
+if errorlevel 1 (
+  echo note: could not update your user PATH - remove %install_dir% from it manually
+  goto :remove_from_path_var
+)
+echo Removed %install_dir% from your user PATH
+
+:remove_from_path_var
+reg query "HKCU\Environment" /v PATOU_INSTALL_DIR >nul 2>&1
+if not errorlevel 1 (
+  rem setx first, purely to broadcast the environment change.
+  setx PATOU_INSTALL_DIR "%install_dir%" >nul 2>&1
+  reg delete "HKCU\Environment" /v PATOU_INSTALL_DIR /f >nul 2>&1
+)
+endlocal & endlocal
+goto :eof
 
 :: Removes the "Patou Bash" entry from `terminal.integrated.profiles.windows`
 :: in every VS Code / VS Code Insiders user settings.json found (and that
