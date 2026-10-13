@@ -10,8 +10,12 @@
 
 A lightweight, self-contained Git quality tool built in Rust. Patou embeds version-controlled commit rules and pre-commit validation directly into your repository—no global installation, Node.js, or project-specific dependencies required.
 
+<div align="center">
+
 ![Made with Rust](https://img.shields.io/badge/Made%20with-Rust-dea584?logo=rust&logoColor=white)
 ![Scripts](https://img.shields.io/badge/Scripts-Bash%20%7C%20PowerShell%20%7C%20CMD-4EAA25?logo=gnubash&logoColor=white)
+
+</div>
 
 **Clone the repository, get the rules, follow the same standards.**
 
