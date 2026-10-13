@@ -6,6 +6,9 @@
 
 [![GitHub release](https://img.shields.io/github/v/release/CM-exe/patou)](https://github.com/CM-exe/patou/releases)
 
+![Made with Rust](https://img.shields.io/badge/Made%20with-Rust-dea584?logo=rust&logoColor=white)
+![Scripts](https://img.shields.io/badge/Scripts-Bash%20%7C%20PowerShell%20%7C%20CMD-4EAA25?logo=gnubash&logoColor=white)
+
 </div>
 
 A lightweight, self-contained Git quality tool built in Rust. Patou embeds version-controlled commit rules and pre-commit validation directly into your repository—no global installation, Node.js, or project-specific dependencies required.
@@ -130,3 +133,11 @@ irm https://raw.githubusercontent.com/CM-exe/patou/main/scripts/uninstall.ps1 | 
 ```cmd
 curl -fsSL https://raw.githubusercontent.com/CM-exe/patou/main/scripts/uninstall.cmd -o uninstall.cmd && uninstall.cmd
 ```
+
+---
+
+<div align="center">
+
+[![Author](https://img.shields.io/badge/Author-CM--exe-blue?logo=github)](https://github.com/CM-exe)
+
+</div>
